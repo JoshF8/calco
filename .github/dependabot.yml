@@ -1,0 +1,66 @@
+# Dependabot — automated dependency updates.
+#
+# Tracks: pnpm workspace, Go module, and GitHub Actions.
+# Schedule: weekly, Monday morning UTC, batched into a single PR per
+# ecosystem to reduce reviewer noise.
+
+version: 2
+updates:
+  # ─── Frontend (pnpm workspace at apps/web) ──────────────────────────────
+  - package-ecosystem: npm
+    directory: /apps/web
+    schedule:
+      interval: weekly
+      day: monday
+      time: '09:00'
+      timezone: Etc/UTC
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - web
+    groups:
+      web-minor-and-patch:
+        applies-to: version-updates
+        update-types:
+          - minor
+          - patch
+      web-security:
+        applies-to: security-updates
+
+  # ─── Backend (Go module at apps/server) ─────────────────────────────────
+  - package-ecosystem: gomod
+    directory: /apps/server
+    schedule:
+      interval: weekly
+      day: monday
+      time: '09:00'
+      timezone: Etc/UTC
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - server
+    groups:
+      server-minor-and-patch:
+        applies-to: version-updates
+        update-types:
+          - minor
+          - patch
+      server-security:
+        applies-to: security-updates
+
+  # ─── CI (GitHub Actions, pinned by SHA) ─────────────────────────────────
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: '09:00'
+      timezone: Etc/UTC
+    open-pull-requests-limit: 3
+    labels:
+      - dependencies
+      - ci
+    groups:
+      actions-all:
+        patterns:
+          - '*'
