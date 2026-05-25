@@ -1,0 +1,26 @@
+{
+  "name": "calco",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Visual designer for AWS infrastructure that translates between canvas and Terraform — in both directions.",
+  "license": "Apache-2.0",
+  "author": "Joshua Franco <joshuafranco98@gmail.com> (https://github.com/JoshF8)",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/JoshF8/calco.git"
+  },
+  "homepage": "https://github.com/JoshF8/calco#readme",
+  "bugs": {
+    "url": "https://github.com/JoshF8/calco/issues"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "packageManager": "pnpm@11.3.0",
+  "scripts": {
+    "dev": "task dev",
+    "build": "task build",
+    "lint": "task lint",
+    "test": "task test"
+  }
+}

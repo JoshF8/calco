@@ -1,0 +1,130 @@
+version: '3'
+
+tasks:
+  # ─── Top-level orchestration ────────────────────────────────────────────────
+  dev:
+    desc: Run web and server in parallel
+    deps: [web:dev, server:dev]
+
+  build:
+    desc: Build web + server
+    deps: [web:build, server:build]
+
+  lint:
+    desc: Lint web + vet server
+    deps: [web:lint, server:vet]
+
+  test:
+    desc: Run all tests
+    deps: [web:test, server:test]
+
+  # ─── Web (apps/web) ─────────────────────────────────────────────────────────
+  web:install:
+    desc: Install web dependencies
+    dir: apps/web
+    cmds:
+      - pnpm install
+
+  web:dev:
+    desc: Run frontend dev server
+    dir: apps/web
+    cmds:
+      - pnpm dev
+
+  web:build:
+    desc: Build frontend for production
+    dir: apps/web
+    cmds:
+      - pnpm build
+
+  web:lint:
+    desc: Lint frontend
+    dir: apps/web
+    cmds:
+      - pnpm lint
+
+  web:test:
+    desc: Run frontend tests
+    dir: apps/web
+    cmds:
+      - pnpm test
+
+  web:gen-types:
+    desc: Generate TS types from running server's OpenAPI spec
+    dir: apps/web
+    cmds:
+      - pnpm gen:types
+
+  # ─── Server (apps/server) ───────────────────────────────────────────────────
+  server:dev:
+    desc: Run server with hot reload (requires air)
+    dir: apps/server
+    cmds:
+      - air
+
+  server:run:
+    desc: Run server once (no hot reload)
+    dir: apps/server
+    cmds:
+      - go run ./cmd/server
+
+  server:build:
+    desc: Build server binary
+    dir: apps/server
+    cmds:
+      - mkdir -p ../../bin
+      - go build -o ../../bin/calco ./cmd/server
+
+  server:test:
+    desc: Run server tests
+    dir: apps/server
+    cmds:
+      - go test ./...
+
+  server:vet:
+    desc: Run go vet
+    dir: apps/server
+    cmds:
+      - go vet ./...
+
+  # ─── Database ───────────────────────────────────────────────────────────────
+  db:up:
+    desc: Start local Postgres via docker compose
+    cmds:
+      - docker compose up -d postgres
+
+  db:down:
+    desc: Stop local Postgres
+    cmds:
+      - docker compose down
+
+  db:migrate:
+    desc: Apply database migrations (Postgres)
+    dir: apps/server
+    cmds:
+      - goose -dir internal/adapters/outbound/db/migrations postgres "{{.DATABASE_URL}}" up
+    vars:
+      DATABASE_URL: '{{.DATABASE_URL | default "postgres://calco:calco_dev@localhost:5432/calco?sslmode=disable"}}'
+
+  db:reset:
+    desc: Drop and recreate the local database
+    deps: [db:down]
+    cmds:
+      - docker volume rm calco_calco-postgres-data || true
+      - task: db:up
+      - sleep 3
+      - task: db:migrate
+
+  db:gen:
+    desc: Regenerate sqlc code
+    dir: apps/server
+    cmds:
+      - sqlc generate
+
+  # ─── Convenience ────────────────────────────────────────────────────────────
+  clean:
+    desc: Remove build artefacts
+    cmds:
+      - rm -rf bin/
+      - rm -rf apps/web/dist
+      - rm -rf apps/web/node_modules/.vite
