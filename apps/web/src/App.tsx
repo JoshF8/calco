@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useQuery } from '@tanstack/react-query';
 import { Languages, Moon, Sun } from 'lucide-react';
 import { Button } from '@/shared/components/ui/button';
+import { apiClient } from '@/lib/api-client';
 
 function useTheme() {
   const [isDark, setIsDark] = useState<boolean>(() =>
@@ -14,6 +16,19 @@ function useTheme() {
   }, [isDark]);
 
   return [isDark, setIsDark] as const;
+}
+
+function useHello(name: string) {
+  return useQuery({
+    queryKey: ['hello', name],
+    queryFn: async () => {
+      const { data, error } = await apiClient.GET('/api/v1/hello', {
+        params: { query: { name } },
+      });
+      if (error) throw new Error(error.detail ?? 'request failed');
+      return data;
+    },
+  });
 }
 
 function SymbolMark({ className }: { className?: string }) {
@@ -53,6 +68,7 @@ function SymbolMark({ className }: { className?: string }) {
 export default function App() {
   const { t, i18n } = useTranslation();
   const [isDark, setIsDark] = useTheme();
+  const hello = useHello('calco');
 
   const toggleLang = () => {
     const next = i18n.language.startsWith('es') ? 'en' : 'es';
@@ -102,6 +118,27 @@ export default function App() {
             {t('app.tagline')}
           </p>
           <p className="text-sm text-muted-foreground">{t('hello.subtitle')}</p>
+
+          <div className="mt-8 flex min-h-[2.5rem] items-center gap-2 rounded-md border px-4 py-2 text-sm">
+            <span className="text-muted-foreground">
+              {t('server.label')}:
+            </span>
+            {hello.isLoading && (
+              <span className="text-muted-foreground italic">
+                {t('server.loading')}
+              </span>
+            )}
+            {hello.isError && (
+              <span className="text-destructive">
+                {t('server.error')}: {hello.error.message}
+              </span>
+            )}
+            {hello.data && (
+              <span className="font-medium text-accent">
+                {hello.data.message}
+              </span>
+            )}
+          </div>
         </div>
       </main>
 

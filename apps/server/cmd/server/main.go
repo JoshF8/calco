@@ -20,6 +20,7 @@ import (
 	"github.com/danielgtaylor/huma/v2/adapters/humachi"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"github.com/go-chi/cors"
 
 	httpdocs "github.com/JoshF8/calco/apps/server/internal/adapters/inbound/http/docs"
 	httphealth "github.com/JoshF8/calco/apps/server/internal/adapters/inbound/http/health"
@@ -55,6 +56,14 @@ func run() error {
 	router.Use(middleware.RealIP)
 	router.Use(middleware.Recoverer)
 	router.Use(middleware.Timeout(30 * time.Second))
+	router.Use(cors.Handler(cors.Options{
+		AllowedOrigins:   cfg.CORSOrigins,
+		AllowedMethods:   []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
+		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type"},
+		ExposedHeaders:   []string{"Link"},
+		AllowCredentials: false,
+		MaxAge:           300,
+	}))
 
 	humaCfg := huma.DefaultConfig(appName, appVersion)
 	humaCfg.Info.Description = "Visual designer for AWS infrastructure that translates between canvas and Terraform."

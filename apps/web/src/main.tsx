@@ -1,8 +1,21 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import './styles/globals.css';
 import './lib/i18n';
 import App from './App';
+
+// TanStack Query client — sensible defaults for an interactive app.
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 60 * 1000,
+      gcTime: 5 * 60 * 1000,
+      retry: 1,
+      refetchOnWindowFocus: false,
+    },
+  },
+});
 
 // Initial theme detection: stored preference > system preference > light.
 const stored = localStorage.getItem('theme');
@@ -15,6 +28,8 @@ if (!root) throw new Error('Missing #root element in index.html');
 
 createRoot(root).render(
   <StrictMode>
-    <App />
+    <QueryClientProvider client={queryClient}>
+      <App />
+    </QueryClientProvider>
   </StrictMode>,
 );

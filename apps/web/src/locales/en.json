@@ -17,6 +17,11 @@
     "light": "Light",
     "dark": "Dark"
   },
+  "server": {
+    "label": "Server says",
+    "loading": "calling…",
+    "error": "request failed"
+  },
   "footer": {
     "copyright": "© {{year}} Joshua Franco · Apache 2.0"
   }

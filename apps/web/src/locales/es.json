@@ -17,6 +17,11 @@
     "light": "Claro",
     "dark": "Oscuro"
   },
+  "server": {
+    "label": "El servidor dice",
+    "loading": "llamando…",
+    "error": "request falló"
+  },
   "footer": {
     "copyright": "© {{year}} Joshua Franco · Apache 2.0"
   }
