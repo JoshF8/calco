@@ -63,5 +63,7 @@ override.tf.json
 terraform.rc
 
 # ─── Generated artefacts ─────────────────────────────────────
-apps/web/src/lib/types.gen.ts
+# apps/web/src/lib/types.gen.ts is checked in: CI typechecks without
+# running the server, and PRs that change the server API surface
+# show the matching type diff for review.
 apps/server/internal/adapters/outbound/db/generated/
