@@ -1,0 +1,61 @@
+# ─── Editors / IDEs ──────────────────────────────────────────
+.idea/
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+*.swp
+*.swo
+
+# ─── OS ──────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ─── Logs / tmp ──────────────────────────────────────────────
+*.log
+tmp/
+.cache/
+
+# ─── Secrets / env ───────────────────────────────────────────
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# ─── Node / pnpm (apps/web) ──────────────────────────────────
+node_modules/
+dist/
+build/
+.next/
+.turbo/
+.vite/
+pnpm-debug.log*
+npm-debug.log*
+yarn-error.log*
+
+# ─── Go (apps/server) ────────────────────────────────────────
+bin/
+vendor/
+*.exe
+*.test
+*.out
+coverage.txt
+coverage.html
+
+# ─── Terraform (infra/) ──────────────────────────────────────
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+crash.log
+crash.*.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+.terraformrc
+terraform.rc
+
+# ─── Generated artefacts ─────────────────────────────────────
+apps/web/src/lib/types.gen.ts
+apps/server/internal/adapters/outbound/db/generated/

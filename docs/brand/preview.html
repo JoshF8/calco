@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>calco — brand preview</title>
+  <style>
+    :root {
+      --paper: #F4EFE3;
+      --ink: #3A3530;
+      --paper-dark: #1F1A17;
+      --ink-dark: #E8DDC8;
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: ui-sans-serif, system-ui, -apple-system, sans-serif;
+      margin: 0;
+      padding: 0;
+      color: var(--ink);
+    }
+    section {
+      padding: 64px 48px;
+      border-bottom: 1px solid rgba(0,0,0,0.08);
+    }
+    .light-bg { background: var(--paper); color: var(--ink); }
+    .dark-bg  { background: var(--paper-dark); color: var(--ink-dark); }
+    .white-bg { background: #ffffff; color: var(--ink); }
+    .gh-dark  { background: #0d1117; color: #e6edf3; }
+    h1 {
+      font-weight: 600;
+      font-size: 14px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      opacity: 0.5;
+      margin: 0 0 8px;
+    }
+    h2 {
+      font-weight: 500;
+      font-size: 24px;
+      margin: 0 0 32px;
+      letter-spacing: -0.01em;
+    }
+    .row {
+      display: flex;
+      align-items: center;
+      gap: 64px;
+      flex-wrap: wrap;
+    }
+    figure { margin: 0; }
+    figure img { display: block; }
+    figcaption {
+      font-size: 11px;
+      opacity: 0.55;
+      margin-top: 8px;
+      font-family: ui-monospace, monospace;
+    }
+    .adaptive { background: var(--paper); color: var(--ink); }
+    @media (prefers-color-scheme: dark) {
+      .adaptive { background: var(--paper-dark); color: var(--ink-dark); }
+    }
+    .note {
+      margin-top: 24px;
+      font-size: 13px;
+      opacity: 0.6;
+      max-width: 60ch;
+      line-height: 1.6;
+    }
+  </style>
+</head>
+<body>
+
+  <section class="light-bg">
+    <h1>1 · Light variant on cream paper</h1>
+    <h2>How the brand should feel in light contexts.</h2>
+    <div class="row">
+      <img src="calco-symbol-light.svg" width="130" alt="calco symbol light">
+      <img src="calco-lockup-light.svg" width="480" alt="calco lockup light">
+    </div>
+  </section>
+
+  <section class="dark-bg">
+    <h1>2 · Dark variant on dark paper</h1>
+    <h2>Continuity of the brand across modes.</h2>
+    <div class="row">
+      <img src="calco-symbol-dark.svg" width="130" alt="calco symbol dark">
+      <img src="calco-lockup-dark.svg" width="480" alt="calco lockup dark">
+    </div>
+  </section>
+
+  <section class="white-bg">
+    <h1>3 · Light variant on pure white (GitHub light)</h1>
+    <h2>What GitHub README readers actually see.</h2>
+    <div class="row">
+      <img src="calco-symbol-light.svg" width="130" alt="calco symbol on white">
+      <img src="calco-lockup-light.svg" width="480" alt="calco lockup on white">
+    </div>
+  </section>
+
+  <section class="gh-dark">
+    <h1>4 · Dark variant on GitHub dark (#0d1117)</h1>
+    <h2>Validates dark mode rendering on GitHub.</h2>
+    <div class="row">
+      <img src="calco-symbol-dark.svg" width="130" alt="calco symbol on gh-dark">
+      <img src="calco-lockup-dark.svg" width="480" alt="calco lockup on gh-dark">
+    </div>
+  </section>
+
+  <section class="light-bg">
+    <h1>5 · Symbol scale test</h1>
+    <h2>From favicon to display size.</h2>
+    <div class="row">
+      <figure><img src="calco-symbol-light.svg" width="16"><figcaption>16 px</figcaption></figure>
+      <figure><img src="calco-symbol-light.svg" width="24"><figcaption>24 px</figcaption></figure>
+      <figure><img src="calco-symbol-light.svg" width="32"><figcaption>32 px · favicon</figcaption></figure>
+      <figure><img src="calco-symbol-light.svg" width="48"><figcaption>48 px</figcaption></figure>
+      <figure><img src="calco-symbol-light.svg" width="64"><figcaption>64 px</figcaption></figure>
+      <figure><img src="calco-symbol-light.svg" width="130"><figcaption>130 px · base</figcaption></figure>
+      <figure><img src="calco-symbol-light.svg" width="256"><figcaption>256 px · 2x</figcaption></figure>
+    </div>
+  </section>
+
+  <section class="adaptive">
+    <h1>6 · &lt;picture&gt; auto-swap test</h1>
+    <h2>This swaps based on your system theme.</h2>
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="calco-lockup-dark.svg">
+      <img src="calco-lockup-light.svg" alt="calco" width="320">
+    </picture>
+    <p class="note">
+      To test: switch your OS or browser theme between light and dark mode.
+      The lockup above should swap automatically, and this section's background
+      should change with it. This is exactly what GitHub READMEs do.
+    </p>
+  </section>
+
+</body>
+</html>
