@@ -42,8 +42,8 @@ El producto traduce entre ambas direcciones. La marca es ese acto de traducción
 
 ### Lo que NO somos
 
-- No competimos con Brainboard/Cloudcraft en US enterprise — vivimos donde ellos no llegan.
-- No somos un editor de diagramas genérico (draw.io, Lucid) — somos específicamente IaC + AWS.
+- No competimos en el mercado US enterprise — vivimos donde otras herramientas no llegan.
+- No somos un editor de diagramas genérico — somos específicamente IaC + AWS.
 - No somos low-code/no-code — el código Terraform es ciudadano de primera clase, no un detalle oculto.
 
 ---

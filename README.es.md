@@ -54,18 +54,6 @@ GREENFIELD                              BROWNFIELD
   └─────────────┘                         └─────────────┘
 ```
 
-## Por qué calco
-
-|                              | Terraform a mano | Brainboard / Cloudcraft | draw.io / Lucid | **calco** |
-| ---------------------------- | :--------------: | :---------------------: | :-------------: | :-------: |
-| Diseño visual                |                  |            ✓            |        ✓        |     ✓     |
-| Genera Terraform real        |        ✓         |            ✓            |                 |     ✓     |
-| Importa repos existentes     |                  |            ✓            |                 |     ✓     |
-| Accesible a no-expertos      |                  |                         |        ✓        |     ✓     |
-| Disponible en Latam          |        ✓         |                         |        ✓        |     ✓     |
-
-calco no compite con Brainboard en US enterprise — vive donde ellos no llegan. No es un editor de diagramas genérico; es específicamente IaC. El código Terraform es ciudadano de primera clase, no un detalle oculto.
-
 ## Arquitectura
 
 Monolito modular con arquitectura hexagonal (ports & adapters) en el backend, organización feature-based en el frontend. El graph model es la única fuente de verdad entre canvas y código.
