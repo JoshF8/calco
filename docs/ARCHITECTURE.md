@@ -226,8 +226,7 @@ calco/
 │
 ├── infra/                              # Terraform that deploys calco itself
 ├── .github/workflows/                  # CI/CD
-├── docker-compose.yml                  # Local dev: server + db
-├── Taskfile.yml                        # Common commands
+├── Taskfile.yml                        # Cross-language task runner
 ├── README.md
 └── README.es.md
 ```
@@ -352,18 +351,27 @@ The 11 May 2026 `@tanstack/*` npm supply-chain attack ([TanStack postmortem](htt
 
 ### Local development
 
+The default local stack uses **SQLite as a single file** — no Docker, no infrastructure to start. Postgres is supported via `DATABASE_URL` for users who want to validate against both engines.
+
 ```bash
-# Bring up the stack (server + postgres) on Docker Compose.
-docker compose up -d
+# Apply migrations (creates apps/server/calco.db on first run).
+task db:migrate
 
 # Run the Go server with hot reload (air).
-cd apps/server && air
+task server:dev
 
 # Run the frontend dev server.
-cd apps/web && pnpm dev
+task web:dev
 
-# Generate TS types from running server's /openapi.json
-cd apps/web && pnpm run gen:types
+# Regenerate TS types from the running server's /openapi.json.
+task web:gen-types
+```
+
+To run against Postgres instead, export `DATABASE_URL` before invoking `db:migrate`:
+
+```bash
+export DATABASE_URL="postgres://user:pass@localhost:5432/calco?sslmode=disable"
+task db:migrate
 ```
 
 ### Build (server)
@@ -386,8 +394,8 @@ Produces static assets in `dist/`. Served by any web server or CDN.
 
 ### Deployment
 
-- **Self-host:** `docker-compose.yml` brings up server, postgres, and (optionally) a reverse proxy. Single command.
-- **Hosted (paid version):** AWS ECS Fargate. Defined in a separate private repository (`calco-cloud`). Frontend served from CloudFront + S3. Backend behind an ALB.
+- **Self-host:** a single Go binary serving the API plus the built frontend assets. SQLite file alongside the binary. No infrastructure required beyond the host. Optional Docker image for those who prefer container-based deploys.
+- **Hosted (paid version):** AWS ECS Fargate with Postgres on RDS. Defined in a separate private repository (`calco-cloud`). Frontend served from CloudFront + S3. Backend behind an ALB.
 
 The `infra/` directory in this repo holds Terraform modules used by both self-host examples and the hosted environment — eating our own dog food.
 

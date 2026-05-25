@@ -42,6 +42,12 @@ vendor/
 coverage.txt
 coverage.html
 
+# ─── Local SQLite databases ──────────────────────────────────
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+
 # ─── Terraform (infra/) ──────────────────────────────────────
 .terraform/
 *.tfstate

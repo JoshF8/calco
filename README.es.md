@@ -88,7 +88,7 @@ Detalle completo en [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md). Decisiones y
 
 ## Quick start
 
-Todavía no es ejecutable. Cuando el MVP esté en pie, esta sección documentará `docker compose up` y el flujo de desarrollo local.
+Todavía no es ejecutable. Cuando el MVP esté en pie, esta sección documentará `task dev` y el flujo de desarrollo local. El stack default usa SQLite — sin Docker ni Postgres para self-host.
 
 ## Estructura del repo
 

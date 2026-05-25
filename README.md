@@ -88,7 +88,7 @@ Full details in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md). Decisions and ra
 
 ## Quick start
 
-Not yet runnable. Once the MVP is in place this section will document `docker compose up` and the local development flow.
+Not yet runnable. Once the MVP is in place this section will document `task dev` and the local development flow. The default stack uses SQLite — no Docker or Postgres required for self-hosted use.
 
 ## Repository structure
 

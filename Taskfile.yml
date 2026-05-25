@@ -88,31 +88,26 @@ tasks:
       - go vet ./...
 
   # ─── Database ───────────────────────────────────────────────────────────────
-  db:up:
-    desc: Start local Postgres via docker compose
-    cmds:
-      - docker compose up -d postgres
-
-  db:down:
-    desc: Stop local Postgres
-    cmds:
-      - docker compose down
+  # Default DB is SQLite (file-based, no infra).
+  # Set DATABASE_URL to a Postgres URL to use Postgres instead — useful for
+  # validating queries against both engines or for the hosted environment.
 
   db:migrate:
-    desc: Apply database migrations (Postgres)
+    desc: Apply migrations (SQLite by default; pass DATABASE_URL for Postgres)
     dir: apps/server
     cmds:
-      - goose -dir internal/adapters/outbound/db/migrations postgres "{{.DATABASE_URL}}" up
-    vars:
-      DATABASE_URL: '{{.DATABASE_URL | default "postgres://calco:calco_dev@localhost:5432/calco?sslmode=disable"}}'
+      - |
+        if [ -n "$DATABASE_URL" ]; then
+          goose -dir internal/adapters/outbound/db/migrations postgres "$DATABASE_URL" up
+        else
+          goose -dir internal/adapters/outbound/db/migrations sqlite3 "./calco.db" up
+        fi
 
   db:reset:
-    desc: Drop and recreate the local database
-    deps: [db:down]
+    desc: Drop and recreate the local SQLite database
+    dir: apps/server
     cmds:
-      - docker volume rm calco_calco-postgres-data || true
-      - task: db:up
-      - sleep 3
+      - rm -f calco.db
       - task: db:migrate
 
   db:gen:
@@ -123,8 +118,9 @@ tasks:
 
   # ─── Convenience ────────────────────────────────────────────────────────────
   clean:
-    desc: Remove build artefacts
+    desc: Remove build artefacts and the local SQLite database
     cmds:
       - rm -rf bin/
       - rm -rf apps/web/dist
       - rm -rf apps/web/node_modules/.vite
+      - rm -f apps/server/calco.db
