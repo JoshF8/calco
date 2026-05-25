@@ -1,0 +1,13 @@
+# sqlc — generate type-safe Go code from SQL.
+#
+# Populated as we add the first schema and queries. The intent is two
+# generated packages — one per database engine — sharing migrations
+# expressed in dialect-compatible SQL.
+#
+# Once schema/queries land:
+#   - schema:  internal/adapters/outbound/db/migrations
+#   - queries: internal/adapters/outbound/db/queries
+#   - generated output: internal/adapters/outbound/db/generated/{sqlite,postgres}
+
+version: '2'
+sql: []
