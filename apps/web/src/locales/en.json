@@ -1,0 +1,23 @@
+{
+  "app": {
+    "name": "calco",
+    "tagline": "Your infrastructure, in two languages."
+  },
+  "hello": {
+    "greeting": "Hello, calco",
+    "subtitle": "Scaffold is up. The canvas comes next."
+  },
+  "language": {
+    "switch": "Switch language",
+    "english": "English",
+    "spanish": "Spanish"
+  },
+  "theme": {
+    "toggle": "Toggle theme",
+    "light": "Light",
+    "dark": "Dark"
+  },
+  "footer": {
+    "copyright": "© {{year}} Joshua Franco · Apache 2.0"
+  }
+}
