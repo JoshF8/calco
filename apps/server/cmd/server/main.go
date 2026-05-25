@@ -21,6 +21,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 
+	httpdocs "github.com/JoshF8/calco/apps/server/internal/adapters/inbound/http/docs"
 	httphealth "github.com/JoshF8/calco/apps/server/internal/adapters/inbound/http/health"
 	httphello "github.com/JoshF8/calco/apps/server/internal/adapters/inbound/http/hello"
 	apphello "github.com/JoshF8/calco/apps/server/internal/application/hello"
@@ -60,10 +61,15 @@ func run() error {
 	humaCfg.OpenAPI.Servers = []*huma.Server{
 		{URL: "http://localhost:" + cfg.Port, Description: "Local development"},
 	}
+	// Disable Huma's default Stoplight Elements docs; we serve Scalar instead.
+	humaCfg.DocsPath = ""
 
 	api := humachi.New(router, humaCfg)
 	httphealth.Register(api)
 	httphello.Register(api, greetUser)
+
+	// Serve Scalar API reference at /docs.
+	router.Get("/docs", httpdocs.Handler(appName+" API Reference", "/openapi.json"))
 
 	addr := ":" + cfg.Port
 	srv := &http.Server{
