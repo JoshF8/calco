@@ -24,8 +24,11 @@ var typeRe = regexp.MustCompile(`^[a-z][a-z0-9_]*$`)
 //   - resource IDs are unique and addresses (type.name) are unique;
 //   - every attribute value is internally consistent and every reference
 //     points at an existing resource;
-//   - every edge connects two existing resources and is not a self-loop;
-//   - variable and output names are unique;
+//   - every edge connects two existing resources, is not a self-loop, and is
+//     not a duplicate of another edge;
+//   - variable and output names are valid identifiers and unique, variable
+//     types are non-empty, and variable defaults are literal constants (they
+//     may not reference resources, matching Terraform);
 //   - the dependency graph (derived from references) is acyclic.
 func (m *Model) Validate() error {
 	var errs []error
@@ -95,8 +98,13 @@ func (m *Model) Validate() error {
 		}
 	}
 
-	// Edges: endpoints exist, no self-loop.
+	// Edges: endpoints exist, no self-loop, no duplicates (matching AddEdge).
+	seenEdges := make(map[Edge]bool, len(m.Edges))
 	for _, e := range m.Edges {
+		if seenEdges[e] {
+			errs = append(errs, fmt.Errorf("%w: %s -> %s (%s)", ErrDuplicateEdge, e.From, e.To, e.Attribute))
+		}
+		seenEdges[e] = true
 		if e.From == e.To {
 			errs = append(errs, fmt.Errorf("%w: %s", ErrSelfEdge, e.From))
 			continue
@@ -109,21 +117,37 @@ func (m *Model) Validate() error {
 		}
 	}
 
-	// Variables: unique names, valid defaults.
+	// Variables: valid unique names, non-empty types, literal defaults.
 	varNames := make(map[string]bool, len(m.Variables))
 	for _, v := range m.Variables {
+		if !nameRe.MatchString(v.Name) {
+			errs = append(errs, fmt.Errorf("%w: variable %q", ErrInvalidName, v.Name))
+		}
 		if varNames[v.Name] {
 			errs = append(errs, fmt.Errorf("%w: %s", ErrDuplicateVariable, v.Name))
 		}
 		varNames[v.Name] = true
-		if v.Default != nil && !v.Default.Valid() {
-			errs = append(errs, fmt.Errorf("%w: variable %s default", ErrInvalidValue, v.Name))
+		if v.Type == "" {
+			errs = append(errs, fmt.Errorf("%w: variable %s", ErrEmptyType, v.Name))
+		}
+		if v.Default != nil {
+			if !v.Default.Valid() {
+				errs = append(errs, fmt.Errorf("%w: variable %s default", ErrInvalidValue, v.Name))
+			}
+			// Terraform variable defaults must be literal constants — they
+			// cannot reference resources.
+			if len(v.Default.walkRefs(nil)) > 0 {
+				errs = append(errs, fmt.Errorf("%w: variable %s default must not reference a resource", ErrInvalidValue, v.Name))
+			}
 		}
 	}
 
-	// Outputs: unique names, valid values, resolvable references.
+	// Outputs: valid unique names, valid values, resolvable references.
 	outNames := make(map[string]bool, len(m.Outputs))
 	for _, o := range m.Outputs {
+		if !nameRe.MatchString(o.Name) {
+			errs = append(errs, fmt.Errorf("%w: output %q", ErrInvalidName, o.Name))
+		}
 		if outNames[o.Name] {
 			errs = append(errs, fmt.Errorf("%w: %s", ErrDuplicateOutput, o.Name))
 		}

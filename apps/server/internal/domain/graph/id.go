@@ -10,7 +10,8 @@ import "github.com/google/uuid"
 // that point at it — the Ref's target is the ResourceID, not the address.
 type ResourceID string
 
-// NewResourceID generates a fresh time-ordered (v7) ResourceID.
+// NewResourceID generates a fresh time-ordered (v7) ResourceID. It panics only
+// if the system entropy source fails, which is not expected in practice.
 func NewResourceID() ResourceID {
 	return ResourceID(uuid.Must(uuid.NewV7()).String())
 }

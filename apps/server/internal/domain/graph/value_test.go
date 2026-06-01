@@ -3,6 +3,7 @@ package graph
 import (
 	"encoding/json"
 	"errors"
+	"math"
 	"testing"
 )
 
@@ -95,6 +96,12 @@ func TestAttrValueValid(t *testing.T) {
 		{"ref missing attribute", AttrValue{Kind: KindRef, RefTarget: "id"}, false},
 		{"unknown kind", AttrValue{Kind: "mystery"}, false},
 		{"list with invalid child", List(AttrValue{Kind: KindRef, RefTarget: "id"}), false},
+		{"infinity", AttrValue{Kind: KindLiteral, LitType: LitNumber, Lit: "+Inf"}, false},
+		{"nan", AttrValue{Kind: KindLiteral, LitType: LitNumber, Lit: "NaN"}, false},
+		{"hex float", AttrValue{Kind: KindLiteral, LitType: LitNumber, Lit: "0x1p4"}, false},
+		{"leading plus", AttrValue{Kind: KindLiteral, LitType: LitNumber, Lit: "+5"}, false},
+		{"valid exponent", NumberText("1e10"), true},
+		{"float-via-Inf-constructor", Float(math.Inf(1)), false},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -107,6 +114,15 @@ func TestAttrValueValid(t *testing.T) {
 
 func TestAttrValueMarshalUnknownKindErrors(t *testing.T) {
 	_, err := json.Marshal(AttrValue{Kind: "mystery"})
+	if !errors.Is(err, ErrInvalidValue) {
+		t.Fatalf("err = %v, want ErrInvalidValue", err)
+	}
+}
+
+// A literal with an empty/unknown LitType must not marshal to a shape that
+// silently decodes back as invalid (omitempty would otherwise drop litType).
+func TestAttrValueMarshalInvalidLitTypeErrors(t *testing.T) {
+	_, err := json.Marshal(AttrValue{Kind: KindLiteral, LitType: "", Lit: "x"})
 	if !errors.Is(err, ErrInvalidValue) {
 		t.Fatalf("err = %v, want ErrInvalidValue", err)
 	}

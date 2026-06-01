@@ -15,11 +15,11 @@ import "errors"
 
 // Sentinel errors returned by operations and surfaced (joined) by Validate.
 var (
-	ErrEmptyID           = errors.New("graph: resource has empty ID")
-	ErrInvalidID         = errors.New("graph: resource ID is not a valid identifier")
-	ErrEmptyType         = errors.New("graph: resource has empty type")
-	ErrInvalidType       = errors.New("graph: resource type is not a valid Terraform type")
-	ErrInvalidName       = errors.New("graph: resource name is not a valid Terraform identifier")
+	ErrEmptyID           = errors.New("graph: empty ID")
+	ErrInvalidID         = errors.New("graph: invalid ID (not a valid UUID)")
+	ErrEmptyType         = errors.New("graph: empty type")
+	ErrInvalidType       = errors.New("graph: invalid type")
+	ErrInvalidName       = errors.New("graph: invalid name (not a valid Terraform identifier)")
 	ErrDuplicateID       = errors.New("graph: duplicate resource ID")
 	ErrDuplicateAddress  = errors.New("graph: duplicate resource address (type.name)")
 	ErrResourceNotFound  = errors.New("graph: resource not found")

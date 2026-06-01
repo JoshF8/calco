@@ -66,7 +66,7 @@ Full rationale in [ADR-0001](./adr/0001-architecture-pattern.md). Summary:
 
 **Domain** (`internal/domain/`)
 Pure Go. Tipos + funciones puras. No imports of `net/http`, `database/sql`, Docker, or anything I/O.
-Holds: `GraphModel`, `Resource`, `Edge`, `Variable`, the `HCLGenerator` (graph→HCL), the `HCLImporter` (HCL→graph), and resource schemas.
+Holds: `graph.Model`, `Resource`, `Edge`, `Variable`, `AttrValue` (the tagged attribute-value union), the HCL generator (graph→HCL), the HCL importer (HCL→graph), and resource schemas.
 Tested without mocks.
 
 **Application** (`internal/application/`)
@@ -239,10 +239,10 @@ calco/
 
 ```
 1. User drags resources onto the canvas.
-   → Zustand updates the GraphModel (frontend in-memory).
+   → Zustand updates the graph model (frontend in-memory).
 
 2. Auto-save (debounced):
-   → PUT /api/v1/projects/:id  { graph: GraphModel }
+   → PUT /api/v1/projects/:id  { graph: Model }
 
 3. Server (Huma):
    → Validates input against generated schemas.
@@ -271,7 +271,7 @@ calco/
    a. GithubFetcher clones the repo to a tmpdir.
    b. runner.Init(tmpdir)       — terraform init (download providers)
    c. runner.Graph(tmpdir)      — terraform graph -type=plan (or plan -refresh=false → show -json)
-   d. domain.ImportFromGraph(graphDOT) → GraphModel
+   d. domain.ImportFromGraph(graphDOT) → graph.Model
    e. Persist as a new Project.
 
 3. Browser navigates to the new project. Canvas renders with ELK.js layout (client-side).

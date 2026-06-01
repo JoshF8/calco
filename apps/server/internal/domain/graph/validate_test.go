@@ -101,6 +101,34 @@ func TestValidateFailures(t *testing.T) {
 			},
 			ErrCycle,
 		},
+		{
+			"invalid variable name",
+			func(m *Model) { m.Variables = []Variable{{Name: "1bad", Type: "string"}} },
+			ErrInvalidName,
+		},
+		{
+			"empty variable type",
+			func(m *Model) { m.Variables = []Variable{{Name: "region", Type: ""}} },
+			ErrEmptyType,
+		},
+		{
+			"variable default references a resource",
+			func(m *Model) {
+				d := Ref(m.Resources[0].ID, "id")
+				m.Variables = []Variable{{Name: "v", Type: "string", Default: &d}}
+			},
+			ErrInvalidValue,
+		},
+		{
+			"invalid output name",
+			func(m *Model) { m.Outputs = append(m.Outputs, Output{Name: "1bad", Value: String("x")}) },
+			ErrInvalidName,
+		},
+		{
+			"duplicate edge",
+			func(m *Model) { m.Edges = append(m.Edges, m.Edges[0]) },
+			ErrDuplicateEdge,
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -119,8 +147,8 @@ func TestValidateFailures(t *testing.T) {
 
 func TestValidateAggregatesMultiple(t *testing.T) {
 	m := validModel()
-	m.Resources[0].Type = ""           // ErrEmptyType
-	m.Resources[1].Name = "bad name"   // ErrInvalidName
+	m.Resources[0].Type = ""         // ErrEmptyType
+	m.Resources[1].Name = "bad name" // ErrInvalidName
 	err := m.Validate()
 	if !errors.Is(err, ErrEmptyType) || !errors.Is(err, ErrInvalidName) {
 		t.Fatalf("expected both errors joined, got: %v", err)

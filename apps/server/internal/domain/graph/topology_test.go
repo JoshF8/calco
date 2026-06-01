@@ -32,7 +32,7 @@ func order(rs []Resource) []ResourceID {
 func TestTopologicalSortLinear(t *testing.T) {
 	a, b, c := rid("0a"), rid("0b"), rid("0c")
 	m := &Model{Resources: []Resource{
-		res(c, "aws_route", "r", b), // c depends on b
+		res(c, "aws_route", "r", b),  // c depends on b
 		res(b, "aws_subnet", "s", a), // b depends on a
 		res(a, "aws_vpc", "v"),       // a depends on nothing
 	}}

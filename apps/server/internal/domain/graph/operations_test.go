@@ -139,6 +139,66 @@ func TestRemoveEdge(t *testing.T) {
 	}
 }
 
+func TestRenameResource(t *testing.T) {
+	a, b := rid("01"), rid("02")
+	m := &Model{Resources: []Resource{
+		{ID: a, Type: "aws_vpc", Name: "main", Attributes: map[string]AttrValue{}},
+		{ID: b, Type: "aws_vpc", Name: "other", Attributes: map[string]AttrValue{}},
+	}}
+
+	if err := m.RenameResource(a, "renamed"); err != nil {
+		t.Fatalf("valid rename: %v", err)
+	}
+	if m.Resources[0].Name != "renamed" {
+		t.Fatal("rename did not apply")
+	}
+	// Renaming to a resource's own current name is allowed (self excluded).
+	if err := m.RenameResource(a, "renamed"); err != nil {
+		t.Fatalf("self-rename should be allowed: %v", err)
+	}
+	if err := m.RenameResource(a, "bad name"); !errors.Is(err, ErrInvalidName) {
+		t.Fatalf("invalid name: err = %v", err)
+	}
+	if err := m.RenameResource(a, "other"); !errors.Is(err, ErrDuplicateAddress) {
+		t.Fatalf("dup address: err = %v", err)
+	}
+	if err := m.RenameResource(rid("99"), "x"); !errors.Is(err, ErrResourceNotFound) {
+		t.Fatalf("not found: err = %v", err)
+	}
+}
+
+func TestSetAndRemoveAttribute(t *testing.T) {
+	a := rid("01")
+	m := &Model{Resources: []Resource{{ID: a, Type: "aws_vpc", Name: "main"}}}
+
+	// SetAttribute initializes a nil attribute map.
+	if err := m.SetAttribute(a, "cidr_block", String("10.0.0.0/16")); err != nil {
+		t.Fatalf("set: %v", err)
+	}
+	if m.Resources[0].Attributes["cidr_block"].Lit != "10.0.0.0/16" {
+		t.Fatal("attribute not set")
+	}
+	if err := m.SetAttribute(a, "bad", AttrValue{Kind: KindLiteral, LitType: LitNumber, Lit: "xyz"}); !errors.Is(err, ErrInvalidValue) {
+		t.Fatalf("invalid value: err = %v", err)
+	}
+	if err := m.SetAttribute(rid("99"), "x", String("y")); !errors.Is(err, ErrResourceNotFound) {
+		t.Fatalf("set not found: err = %v", err)
+	}
+
+	if err := m.RemoveAttribute(a, "cidr_block"); err != nil {
+		t.Fatalf("remove: %v", err)
+	}
+	if _, ok := m.Resources[0].Attributes["cidr_block"]; ok {
+		t.Fatal("attribute not removed")
+	}
+	if err := m.RemoveAttribute(a, "absent"); err != nil {
+		t.Fatalf("removing absent attribute should be a no-op: %v", err)
+	}
+	if err := m.RemoveAttribute(rid("99"), "x"); !errors.Is(err, ErrResourceNotFound) {
+		t.Fatalf("remove not found: err = %v", err)
+	}
+}
+
 // A whole Model must survive a JSON round-trip — this is the persistence and
 // REST-transport contract, and the place a naked map would corrupt numbers.
 func TestModelJSONRoundTrip(t *testing.T) {

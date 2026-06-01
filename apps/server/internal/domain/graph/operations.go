@@ -3,8 +3,12 @@ package graph
 import "fmt"
 
 // FindResource returns a pointer to the resource with the given ID and whether
-// it was found. The pointer aliases the Model's backing array; mutating it
-// mutates the Model.
+// it was found. The pointer aliases the Model's backing array: it is valid for
+// inspection and in-place field reads until the next AddResource or
+// RemoveResource, which may reallocate or reorder the slice and invalidate it.
+// To change a resource's name or attributes safely, prefer RenameResource,
+// SetAttribute, and RemoveAttribute, which enforce the Model invariants that a
+// raw pointer write would bypass.
 func (m *Model) FindResource(id ResourceID) (*Resource, bool) {
 	for i := range m.Resources {
 		if m.Resources[i].ID == id {
@@ -93,9 +97,8 @@ func (m *Model) AddEdge(e Edge) error {
 	return nil
 }
 
-// RemoveEdge removes the first edge equal to e. It is a no-op (returning
-// ErrResourceNotFound-free) if no such edge exists; callers that care can
-// check the returned bool.
+// RemoveEdge removes the first edge equal to e and reports whether one was
+// found and removed.
 func (m *Model) RemoveEdge(e Edge) bool {
 	for i, existing := range m.Edges {
 		if existing == e {
@@ -104,4 +107,51 @@ func (m *Model) RemoveEdge(e Edge) bool {
 		}
 	}
 	return false
+}
+
+// RenameResource changes a resource's Terraform-name slug, enforcing the same
+// validity and address-uniqueness rules as AddResource. Renaming through this
+// method — rather than by writing to a FindResource pointer — cannot leave the
+// Model with an invalid or colliding address.
+func (m *Model) RenameResource(id ResourceID, name string) error {
+	r, ok := m.FindResource(id)
+	if !ok {
+		return fmt.Errorf("%w: %s", ErrResourceNotFound, id)
+	}
+	if !nameRe.MatchString(name) {
+		return fmt.Errorf("%w: %q", ErrInvalidName, name)
+	}
+	if existing, ok := m.FindResourceByAddress(r.Type, name); ok && existing.ID != id {
+		return fmt.Errorf("%w: %s.%s", ErrDuplicateAddress, r.Type, name)
+	}
+	r.Name = name
+	return nil
+}
+
+// SetAttribute sets or replaces an attribute on a resource, rejecting values
+// that are not internally consistent for their kind.
+func (m *Model) SetAttribute(id ResourceID, name string, v AttrValue) error {
+	r, ok := m.FindResource(id)
+	if !ok {
+		return fmt.Errorf("%w: %s", ErrResourceNotFound, id)
+	}
+	if !v.Valid() {
+		return fmt.Errorf("%w: %s.%s", ErrInvalidValue, r.Address(), name)
+	}
+	if r.Attributes == nil {
+		r.Attributes = map[string]AttrValue{}
+	}
+	r.Attributes[name] = v
+	return nil
+}
+
+// RemoveAttribute deletes an attribute from a resource. Deleting an absent
+// attribute is a no-op.
+func (m *Model) RemoveAttribute(id ResourceID, name string) error {
+	r, ok := m.FindResource(id)
+	if !ok {
+		return fmt.Errorf("%w: %s", ErrResourceNotFound, id)
+	}
+	delete(r.Attributes, name)
+	return nil
 }

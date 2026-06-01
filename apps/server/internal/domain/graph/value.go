@@ -3,8 +3,14 @@ package graph
 import (
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"strconv"
 )
+
+// numberRe matches a finite decimal number. strconv.ParseFloat alone would
+// also accept "Inf", "NaN", hex floats ("0x1p4"), and a leading '+', none of
+// which are valid HCL numbers.
+var numberRe = regexp.MustCompile(`^-?[0-9]+(\.[0-9]+)?([eE][-+]?[0-9]+)?$`)
 
 // ValueKind tags the variant of an AttrValue.
 type ValueKind string
@@ -107,9 +113,7 @@ func (v AttrValue) Valid() bool {
 		case LitString, LitBool:
 			return true
 		case LitNumber:
-			// A number literal's text must parse as a float64.
-			_, err := strconv.ParseFloat(v.Lit, 64)
-			return err == nil
+			return numberRe.MatchString(v.Lit)
 		default:
 			return false
 		}
@@ -157,6 +161,11 @@ func (v AttrValue) MarshalJSON() ([]byte, error) {
 	out := attrValueJSON{Kind: v.Kind}
 	switch v.Kind {
 	case KindLiteral:
+		switch v.LitType {
+		case LitString, LitNumber, LitBool:
+		default:
+			return nil, fmt.Errorf("%w: literal has invalid litType %q", ErrInvalidValue, v.LitType)
+		}
 		lit := v.Lit
 		out.LitType = v.LitType
 		out.Value = &lit
