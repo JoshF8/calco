@@ -57,12 +57,19 @@ export function ExportPanel() {
 
       {files && filenames.length > 0 && (
         <>
-          <div role="tablist" className="flex gap-1 overflow-x-auto border-b px-2 py-1.5">
+          <div
+            role="tablist"
+            aria-label={t('export.filesLabel')}
+            className="flex gap-1 overflow-x-auto border-b px-2 py-1.5"
+          >
             {filenames.map((name) => (
               <button
                 key={name}
+                id={`file-tab-${name}`}
                 role="tab"
                 aria-selected={active === name}
+                aria-controls="file-panel"
+                tabIndex={active === name ? 0 : -1}
                 onClick={() => setActive(name)}
                 className={
                   'rounded px-2 py-1 font-mono text-xs ' +
@@ -73,7 +80,12 @@ export function ExportPanel() {
               </button>
             ))}
           </div>
-          <pre className="flex-1 overflow-auto bg-background px-4 py-3 font-mono text-xs leading-relaxed">
+          <pre
+            role="tabpanel"
+            id="file-panel"
+            aria-labelledby={active ? `file-tab-${active}` : undefined}
+            className="flex-1 overflow-auto bg-background px-4 py-3 font-mono text-xs leading-relaxed"
+          >
             <code>{active ? files[active] : ''}</code>
           </pre>
           <div className="border-t px-4 py-2">

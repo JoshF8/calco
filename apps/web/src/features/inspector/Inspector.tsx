@@ -27,7 +27,9 @@ export function Inspector() {
   if (selected.length > 1) {
     return <Empty>{t('inspector.multiple', { count: selected.length })}</Empty>;
   }
-  return <ResourceForm node={selected[0]} />;
+  // key forces a fresh form (and fresh local input state) per resource, so the
+  // name field can never show or commit a previous node's value.
+  return <ResourceForm key={selected[0].id} node={selected[0]} nodes={nodes} />;
 }
 
 function Empty({ children }: { children: React.ReactNode }) {
@@ -38,13 +40,12 @@ function Empty({ children }: { children: React.ReactNode }) {
   );
 }
 
-function ResourceForm({ node }: { node: ResourceNode }) {
+function ResourceForm({ node, nodes }: { node: ResourceNode; nodes: ResourceNode[] }) {
   const { t } = useTranslation();
   const setNodeName = useCanvasStore((s) => s.setNodeName);
   const setAttribute = useCanvasStore((s) => s.setAttribute);
   const removeAttribute = useCanvasStore((s) => s.removeAttribute);
-  // Names taken by other resources of the same type (uniqueness is per type).
-  const nodes = useCanvasStore((s) => s.nodes);
+
   const takenNames = nodes
     .filter((n) => n.id !== node.id && n.data.type === node.data.type)
     .map((n) => n.data.name);
@@ -58,6 +59,12 @@ function ResourceForm({ node }: { node: ResourceNode }) {
 
   const commitName = () => {
     if (!nameError && name !== node.data.name) setNodeName(node.id, name);
+  };
+
+  // Resolve a reference target to its Terraform address for display.
+  const targetLabel = (targetId: string) => {
+    const tgt = nodes.find((n) => n.id === targetId);
+    return tgt ? `${tgt.data.type}.${tgt.data.name}` : t('inspector.unknownRef');
   };
 
   const attrKeys = Object.keys(node.data.attributes).sort();
@@ -80,11 +87,19 @@ function ResourceForm({ node }: { node: ResourceNode }) {
           value={name}
           onChange={(e) => setName(e.target.value)}
           onBlur={commitName}
-          onKeyDown={(e) => e.key === 'Enter' && commitName()}
-          className="w-full rounded-md border bg-background px-2 py-1 font-mono text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') commitName();
+            if (e.key === 'Escape') setName(node.data.name);
+          }}
+          className="w-full rounded-md border bg-background px-2 py-1 font-mono text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring aria-[invalid=true]:border-destructive"
           aria-invalid={nameError !== null}
+          aria-describedby={nameError ? 'resource-name-error' : undefined}
         />
-        {nameError && <p className="text-xs text-destructive">{nameError}</p>}
+        {nameError && (
+          <p id="resource-name-error" role="alert" className="text-xs text-destructive">
+            {nameError}
+          </p>
+        )}
       </div>
 
       <div className="flex-1 px-4 py-3">
@@ -98,6 +113,7 @@ function ResourceForm({ node }: { node: ResourceNode }) {
               key={key}
               attrKey={key}
               value={node.data.attributes[key]}
+              targetLabel={targetLabel}
               onChange={(v) => setAttribute(node.id, key, v)}
               onRemove={() => removeAttribute(node.id, key)}
             />
@@ -115,18 +131,17 @@ function ResourceForm({ node }: { node: ResourceNode }) {
 function AttributeRow({
   attrKey,
   value,
+  targetLabel,
   onChange,
   onRemove,
 }: {
   attrKey: string;
   value: ApiAttrValue;
+  targetLabel: (targetId: string) => string;
   onChange: (v: ApiAttrValue) => void;
   onRemove: () => void;
 }) {
   const { t } = useTranslation();
-
-  // References are shown read-only for now; editing them is the connections
-  // feature. Literals are editable.
   const editable = value.kind === 'literal';
 
   return (
@@ -135,7 +150,7 @@ function AttributeRow({
         <span className="truncate font-mono text-xs">{attrKey}</span>
         <button
           onClick={onRemove}
-          aria-label={t('inspector.remove')}
+          aria-label={`${t('inspector.remove')}: ${attrKey}`}
           title={t('inspector.remove')}
           className="text-muted-foreground hover:text-destructive"
         >
@@ -143,10 +158,12 @@ function AttributeRow({
         </button>
       </div>
       {editable ? (
-        <LiteralValueInput value={value} onChange={onChange} />
+        <LiteralValueInput attrKey={attrKey} value={value} onChange={onChange} />
       ) : (
         <div className="mt-1 font-mono text-xs text-muted-foreground">
-          {value.kind === 'ref' ? `→ ${value.target}.${value.attribute}` : t('inspector.reference')}
+          {value.kind === 'ref'
+            ? `→ ${targetLabel(value.target ?? '')}.${value.attribute}`
+            : t('inspector.reference')}
         </div>
       )}
     </div>
@@ -154,35 +171,64 @@ function AttributeRow({
 }
 
 function LiteralValueInput({
+  attrKey,
   value,
   onChange,
 }: {
+  attrKey: string;
   value: ApiAttrValue;
   onChange: (v: ApiAttrValue) => void;
 }) {
+  const { t } = useTranslation();
   const litType = (value.litType ?? 'string') as LitType;
+  // Hooks must run unconditionally, before the bool early-return.
   const raw = value.value ?? '';
+  const [draft, setDraft] = useState(raw);
 
   if (litType === 'bool') {
+    const checked = value.value === 'true';
     return (
       <label className="mt-1 flex items-center gap-2 text-xs">
         <input
           type="checkbox"
-          checked={raw === 'true'}
+          checked={checked}
           onChange={(e) => onChange(literal('bool', e.target.checked ? 'true' : 'false'))}
+          aria-label={`${attrKey} ${t('inspector.value')}`}
         />
-        {raw === 'true' ? 'true' : 'false'}
+        {checked ? 'true' : 'false'}
       </label>
     );
   }
 
-  const invalid = litType === 'number' && raw !== '' && !isValidNumber(raw);
+  // string/number share a local draft so typing never writes an invalid value.
+  // Strings are always valid and commit live; numbers commit only on blur/Enter
+  // when valid, and revert otherwise — so a half-typed "1e" never reaches the
+  // store (and never 422s the whole export).
+  const invalid = litType === 'number' && draft !== '' && !isValidNumber(draft);
+
+  const commit = () => {
+    if (litType === 'number') {
+      if (isValidNumber(draft)) onChange(literal('number', draft));
+      else setDraft(raw);
+    }
+  };
+
   return (
     <input
-      value={raw}
+      value={draft}
       inputMode={litType === 'number' ? 'decimal' : 'text'}
-      onChange={(e) => onChange(literal(litType, e.target.value))}
+      aria-label={`${attrKey} ${t('inspector.value')}`}
       aria-invalid={invalid}
+      onChange={(e) => {
+        const v = e.target.value;
+        setDraft(v);
+        if (litType === 'string') onChange(literal('string', v));
+      }}
+      onBlur={commit}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') commit();
+        if (e.key === 'Escape') setDraft(raw);
+      }}
       className="mt-1 w-full rounded border bg-background px-2 py-1 font-mono text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring aria-[invalid=true]:border-destructive"
     />
   );
@@ -201,7 +247,8 @@ function AddAttribute({
   const [value, setValue] = useState('');
 
   const keyValid = isValidName(key) && !existingKeys.includes(key);
-  const valueValid = type !== 'number' || value === '' || isValidNumber(value);
+  // A number must be a complete valid number; strings (incl. empty) are fine.
+  const valueValid = type === 'string' || type === 'bool' || isValidNumber(value);
   const canAdd = keyValid && valueValid;
 
   const add = () => {
@@ -219,6 +266,7 @@ function AddAttribute({
         value={key}
         onChange={(e) => setKey(e.target.value)}
         placeholder={t('inspector.key')}
+        aria-label={t('inspector.key')}
         className="w-full rounded border bg-background px-2 py-1 font-mono text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring"
         aria-invalid={key !== '' && !keyValid}
       />
@@ -238,6 +286,8 @@ function AddAttribute({
             value={value}
             onChange={(e) => setValue(e.target.value)}
             placeholder={t('inspector.value')}
+            aria-label={t('inspector.value')}
+            aria-invalid={type === 'number' && value !== '' && !isValidNumber(value)}
             className="min-w-0 flex-1 rounded border bg-background px-2 py-1 font-mono text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring"
           />
         )}

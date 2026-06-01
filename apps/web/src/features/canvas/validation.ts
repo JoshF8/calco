@@ -12,7 +12,10 @@ export function isValidName(s: string): boolean {
 }
 
 /** isValidNumber reports whether s is a finite decimal literal (no leading
- * zeros, no Inf/NaN), matching the server's number rule. */
+ * zeros, no Inf/NaN). It shares the server's regex but is intentionally
+ * slightly stricter: it also rejects values beyond float64 range (Number(s)
+ * === Infinity), which the server's big.Float would accept. Erring strict is
+ * safe — it never lets through a value the server would 422. */
 export function isValidNumber(s: string): boolean {
   return NUMBER_RE.test(s) && Number.isFinite(Number(s));
 }

@@ -40,6 +40,7 @@
     }
   },
   "inspector": {
+    "tabsLabel": "Right panel",
     "tabInspector": "Inspector",
     "tabTerraform": "Terraform",
     "empty": "Select a resource to edit it.",
@@ -55,7 +56,8 @@
     "value": "value",
     "add": "Add",
     "remove": "Remove",
-    "reference": "reference"
+    "reference": "reference",
+    "unknownRef": "(unknown)"
   },
   "export": {
     "title": "Terraform",
@@ -65,7 +67,8 @@
     "emptyCanvas": "Add resources from the left, then generate.",
     "prompt": "Click Generate to render Terraform from the canvas.",
     "download": "Download .tf",
-    "errorPrefix": "Error"
+    "errorPrefix": "Error",
+    "filesLabel": "Generated files"
   },
   "footer": {
     "copyright": "© {{year}} Joshua Franco · Apache 2.0"
