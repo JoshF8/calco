@@ -28,4 +28,12 @@ void i18n
     },
   });
 
+// Keep <html lang> in sync with the active language so assistive tech and
+// the browser see the right locale (index.html ships a static default).
+function syncDocumentLang(lng: string) {
+  document.documentElement.lang = lng.split('-')[0];
+}
+i18n.on('languageChanged', syncDocumentLang);
+if (i18n.language) syncDocumentLang(i18n.language);
+
 export default i18n;

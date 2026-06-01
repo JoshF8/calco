@@ -1,4 +1,7 @@
-// Package health registers liveness and readiness endpoints on a Huma API.
+// Package health registers the liveness endpoint on a Huma API.
+//
+// Readiness (/readyz, which pings the database) lands with the
+// persistence layer; until then only /healthz is wired.
 package health
 
 import (
@@ -15,7 +18,7 @@ type healthOutput struct {
 	}
 }
 
-// Register wires the health endpoints onto the given Huma API.
+// Register wires the liveness endpoint onto the given Huma API.
 func Register(api huma.API) {
 	huma.Register(api, huma.Operation{
 		OperationID: "health-liveness",

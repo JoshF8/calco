@@ -295,9 +295,13 @@ Imported brownfield projects can be adopted into editable greenfield projects. T
 
 ### Observability
 
-- OpenTelemetry traces opt-in via `OTEL_EXPORTER_OTLP_ENDPOINT` env var.
-- Metrics exposed at `/metrics` (Prometheus format) via Huma middleware.
-- Health check at `/healthz` (liveness) and `/readyz` (readiness with DB ping).
+Current state: structured logging only. The rest is the intended design,
+wired as the surfaces they observe come online.
+
+- `/healthz` (liveness) is wired today.
+- `/readyz` (readiness with a DB ping) — *planned*, lands with the persistence layer.
+- Metrics at `/metrics` (Prometheus format) — *planned*, folds in with the runner.
+- OpenTelemetry traces opt-in via `OTEL_EXPORTER_OTLP_ENDPOINT` — *planned*, earns its keep once multi-hop flows (HTTP → use case → runner → DB) exist.
 
 ### Error handling
 
@@ -321,8 +325,8 @@ The 11 May 2026 `@tanstack/*` npm supply-chain attack ([TanStack postmortem](htt
 - `pnpm-lock.yaml` committed and verified by CI (`pnpm install --frozen-lockfile`).
 
 **Backend dependency hygiene:**
-- `go.sum` committed and verified.
-- Renovate bot watches for CVEs and proposes upgrades.
+- `go.sum` committed and verified in CI (`go mod verify`).
+- Dependabot watches npm, Go modules, and GitHub Actions weekly and proposes grouped upgrade PRs (`.github/dependabot.yml`).
 
 **Runner sandbox:**
 - Terraform containers spawned with `--network=none` after `terraform init` (init needs network for provider download; everything else does not).
