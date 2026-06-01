@@ -74,6 +74,64 @@ describe('canvas store', () => {
     });
   });
 
+  it('creates container nodes with a type and size, leaves as resource nodes', () => {
+    const { addResource } = useCanvasStore.getState();
+    addResource('aws_vpc');
+    addResource('aws_s3_bucket');
+    const [vpc, bucket] = useCanvasStore.getState().nodes;
+    expect(vpc.type).toBe('container');
+    expect(vpc.width).toBe(400);
+    expect(bucket.type).toBe('resource');
+    expect(bucket.width).toBeUndefined();
+  });
+
+  it('nestNode sets parent, position, the reference, and parent-first order', () => {
+    const { addResource } = useCanvasStore.getState();
+    addResource('aws_vpc');
+    addResource('aws_subnet');
+    const vpc = useCanvasStore.getState().nodes.find((n) => n.data.type === 'aws_vpc')!;
+    const subnet = useCanvasStore.getState().nodes.find((n) => n.data.type === 'aws_subnet')!;
+
+    useCanvasStore.getState().nestNode(subnet.id, vpc.id, { x: 10, y: 30 }, 'vpc_id');
+
+    const nodes = useCanvasStore.getState().nodes;
+    const s = nodes.find((n) => n.id === subnet.id)!;
+    expect(s.parentId).toBe(vpc.id);
+    expect(s.position).toEqual({ x: 10, y: 30 });
+    expect(s.data.attributes.vpc_id).toEqual({ kind: 'ref', target: vpc.id, attribute: 'id' });
+    // Parent must come before child.
+    expect(nodes.findIndex((n) => n.id === vpc.id)).toBeLessThan(nodes.findIndex((n) => n.id === subnet.id));
+  });
+
+  it('unnestNode clears parent and removes the reference', () => {
+    const { addResource } = useCanvasStore.getState();
+    addResource('aws_vpc');
+    addResource('aws_subnet');
+    const vpc = useCanvasStore.getState().nodes.find((n) => n.data.type === 'aws_vpc')!;
+    const subnet = useCanvasStore.getState().nodes.find((n) => n.data.type === 'aws_subnet')!;
+    useCanvasStore.getState().nestNode(subnet.id, vpc.id, { x: 10, y: 30 }, 'vpc_id');
+
+    useCanvasStore.getState().unnestNode(subnet.id, { x: 500, y: 500 }, 'vpc_id');
+
+    const s = useCanvasStore.getState().nodes.find((n) => n.id === subnet.id)!;
+    expect(s.parentId).toBeUndefined();
+    expect(s.position).toEqual({ x: 500, y: 500 });
+    expect(s.data.attributes.vpc_id).toBeUndefined();
+  });
+
+  it('a nested reference reaches toApiModel', () => {
+    const { addResource } = useCanvasStore.getState();
+    addResource('aws_vpc');
+    addResource('aws_subnet');
+    const vpc = useCanvasStore.getState().nodes.find((n) => n.data.type === 'aws_vpc')!;
+    const subnet = useCanvasStore.getState().nodes.find((n) => n.data.type === 'aws_subnet')!;
+    useCanvasStore.getState().nestNode(subnet.id, vpc.id, { x: 10, y: 30 }, 'vpc_id');
+
+    const model = useCanvasStore.getState().toApiModel();
+    const sub = model.resources!.find((r) => r.type === 'aws_subnet')!;
+    expect(sub.attributes!.vpc_id).toEqual({ kind: 'ref', target: vpc.id, attribute: 'id' });
+  });
+
   it('toApiModel projects nodes into the wire shape', () => {
     useCanvasStore.getState().addResource('aws_vpc');
     const model = useCanvasStore.getState().toApiModel();

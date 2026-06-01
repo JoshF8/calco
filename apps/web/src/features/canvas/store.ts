@@ -15,11 +15,14 @@ import {
 } from '@xyflow/react';
 import type { components } from '@/lib/types.gen';
 import { shortType } from './catalog';
+import { containerSize, isContainer } from './containment';
 import type { ResourceNodeData } from './ResourceNode';
 
 export type ApiModel = components['schemas']['Model'];
 export type ApiAttrValue = components['schemas']['AttrValue'];
-export type ResourceNode = Node<ResourceNodeData, 'resource'>;
+// A node is either a free/leaf resource ('resource') or a container box
+// ('container', e.g. VPC/subnet); both carry ResourceNodeData.
+export type ResourceNode = Node<ResourceNodeData>;
 
 interface CanvasState {
   nodes: ResourceNode[];
@@ -41,6 +44,13 @@ interface CanvasActions {
   setAttribute: (id: string, key: string, value: ApiAttrValue) => void;
   /** removeAttribute deletes an attribute from a resource. */
   removeAttribute: (id: string, key: string) => void;
+  /** nestNode places a node inside a container: sets its parent, its
+   * container-relative position, and the reference attribute that encodes the
+   * containment in Terraform. */
+  nestNode: (id: string, parentId: string, position: { x: number; y: number }, attribute: string) => void;
+  /** unnestNode frees a node from its container: clears its parent, restores
+   * its absolute position, and removes the containment reference attribute. */
+  unnestNode: (id: string, position: { x: number; y: number }, attribute: string) => void;
   /** clear empties the canvas. */
   clear: () => void;
   /** toApiModel projects the canvas into the generate endpoint's wire shape. */
@@ -59,23 +69,46 @@ function uniqueName(nodes: ResourceNode[], type: string): string {
   return `${base}_${n}`;
 }
 
+// React Flow requires a parent node to appear before its children in the array.
+// Sort by nesting depth (stable, so same-depth order is preserved).
+function parentsFirst(nodes: ResourceNode[]): ResourceNode[] {
+  const byId = new Map(nodes.map((n) => [n.id, n]));
+  const depth = (n: ResourceNode): number => {
+    let d = 0;
+    let cur: ResourceNode | undefined = n;
+    while (cur?.parentId && d < 16) {
+      d++;
+      cur = byId.get(cur.parentId);
+    }
+    return d;
+  };
+  return [...nodes].sort((a, b) => depth(a) - depth(b));
+}
+
+function ref(targetId: string): ApiAttrValue {
+  return { kind: 'ref', target: targetId, attribute: 'id' };
+}
+
 export const useCanvasStore = create<CanvasState & CanvasActions>((set, get) => ({
   nodes: [],
   edges: [],
 
   addResource: (type) =>
     set((s) => {
-      const count = s.nodes.length;
+      const topLevel = s.nodes.filter((n) => !n.parentId).length;
+      const container = isContainer(type);
       const node: ResourceNode = {
         id: crypto.randomUUID(),
-        type: 'resource',
-        position: { x: 80 + (count % 4) * 230, y: 80 + Math.floor(count / 4) * 150 },
+        type: container ? 'container' : 'resource',
+        position: { x: 80 + (topLevel % 4) * 260, y: 80 + Math.floor(topLevel / 4) * 220 },
         selected: true,
+        ...(container ? { width: containerSize[type].width, height: containerSize[type].height } : {}),
         data: { type, name: uniqueName(s.nodes, type), attributes: {} },
       };
       // Deselect the others so the new node is the sole selection.
       const others = s.nodes.map((n) => (n.selected ? { ...n, selected: false } : n));
-      return { nodes: [...others, node] };
+      // New top-level node goes last; ordering by depth keeps it valid.
+      return { nodes: parentsFirst([...others, node]) };
     }),
 
   onNodesChange: (changes) => set((s) => ({ nodes: applyNodeChanges(changes, s.nodes) })),
@@ -102,6 +135,32 @@ export const useCanvasStore = create<CanvasState & CanvasActions>((set, get) => 
         return { ...n, data: { ...n.data, attributes } };
       }),
     })),
+
+  nestNode: (id, parentId, position, attribute) =>
+    set((s) => {
+      const nodes = s.nodes.map((n) =>
+        n.id === id
+          ? {
+              ...n,
+              parentId,
+              position,
+              data: { ...n.data, attributes: { ...n.data.attributes, [attribute]: ref(parentId) } },
+            }
+          : n,
+      );
+      return { nodes: parentsFirst(nodes) };
+    }),
+
+  unnestNode: (id, position, attribute) =>
+    set((s) => {
+      const nodes = s.nodes.map((n) => {
+        if (n.id !== id) return n;
+        const attributes = { ...n.data.attributes };
+        delete attributes[attribute];
+        return { ...n, parentId: undefined, position, data: { ...n.data, attributes } };
+      });
+      return { nodes: parentsFirst(nodes) };
+    }),
 
   clear: () => set({ nodes: [], edges: [] }),
 
