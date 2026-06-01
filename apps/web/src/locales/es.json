@@ -19,7 +19,25 @@
   },
   "palette": {
     "title": "Recursos",
-    "hint": "Clic para agregar al canvas"
+    "hint": "Clic para agregar al canvas",
+    "group": {
+      "network": "Red",
+      "compute": "Cómputo",
+      "storage": "Almacenamiento",
+      "database": "Base de datos",
+      "security": "Seguridad"
+    },
+    "resource": {
+      "aws_vpc": "VPC",
+      "aws_subnet": "Subred",
+      "aws_lb": "Balanceador",
+      "aws_instance": "Instancia EC2",
+      "aws_lambda_function": "Función Lambda",
+      "aws_s3_bucket": "Bucket S3",
+      "aws_db_instance": "Base de datos RDS",
+      "aws_security_group": "Security Group",
+      "aws_iam_role": "Rol IAM"
+    }
   },
   "export": {
     "title": "Terraform",
@@ -28,7 +46,8 @@
     "resourceCount_other": "{{count}} recursos en el canvas",
     "emptyCanvas": "Agregá recursos desde la izquierda y generá.",
     "prompt": "Clic en Generar para renderizar Terraform desde el canvas.",
-    "download": "Descargar .tf"
+    "download": "Descargar .tf",
+    "errorPrefix": "Error"
   },
   "footer": {
     "copyright": "© {{year}} Joshua Franco · Apache 2.0"

@@ -14,7 +14,7 @@ import {
   type NodeChange,
 } from '@xyflow/react';
 import type { components } from '@/lib/types.gen';
-import { labelFor, shortType } from './catalog';
+import { shortType } from './catalog';
 import type { ResourceNodeData } from './ResourceNode';
 
 export type ApiModel = components['schemas']['Model'];
@@ -42,7 +42,11 @@ interface CanvasActions {
 }
 
 function uniqueName(nodes: ResourceNode[], type: string): string {
-  const base = shortType(type);
+  // Ensure the base is a valid Terraform identifier start (letter/underscore);
+  // a type whose slug begins with a digit (e.g. a hypothetical aws_3tier) would
+  // otherwise produce a name the server rejects.
+  let base = shortType(type);
+  if (!/^[A-Za-z_]/.test(base)) base = `r_${base}`;
   const taken = new Set(nodes.filter((n) => n.data.type === type).map((n) => n.data.name));
   let n = 1;
   while (taken.has(`${base}_${n}`)) n++;
@@ -61,7 +65,7 @@ export const useCanvasStore = create<CanvasState & CanvasActions>((set, get) => 
         type: 'resource',
         position: { x: 80 + (count % 4) * 230, y: 80 + Math.floor(count / 4) * 150 },
         selected: true,
-        data: { label: labelFor(type), type, name: uniqueName(s.nodes, type), attributes: {} },
+        data: { type, name: uniqueName(s.nodes, type), attributes: {} },
       };
       // Deselect the others so the new node is the sole selection.
       const others = s.nodes.map((n) => (n.selected ? { ...n, selected: false } : n));
@@ -83,6 +87,11 @@ export const useCanvasStore = create<CanvasState & CanvasActions>((set, get) => 
         attributes: n.data.attributes,
         position: { x: n.position.x, y: n.position.y },
       })),
+      // Canonical edge direction (matches the server's domain model and
+      // TopologicalSort): from = the dependent resource (the one holding the
+      // reference), to = the dependency. When a connect handler is added it
+      // must map handles to this direction, regardless of which side the
+      // user dragged from.
       edges: s.edges.map((e) => ({
         from: e.source,
         to: e.target,

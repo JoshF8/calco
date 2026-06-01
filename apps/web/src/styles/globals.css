@@ -1,6 +1,9 @@
 @import "tailwindcss";
 
-@custom-variant dark (&:is(.dark, .dark *));
+/* Scope dark mode to the document element specifically. React Flow stamps a
+   bare `dark` class on its own wrapper when colorMode is dark; keying the app
+   theme on `html.dark` keeps the two from coupling. */
+@custom-variant dark (&:is(html.dark, html.dark *));
 
 /* ────────────────────────────────────────────────────────────────────
    calco brand tokens
@@ -53,7 +56,7 @@
   --radius: 0.5rem;
 }
 
-.dark {
+html.dark {
   --background: var(--brand-paper-dark);
   --foreground: var(--brand-ink-dark);
 

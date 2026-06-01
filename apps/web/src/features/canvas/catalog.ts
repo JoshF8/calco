@@ -1,33 +1,32 @@
 // The catalog of AWS resource types the canvas can place. Intentionally a
-// small, curated set for the greenfield MVP — breadth comes later. Each entry
-// is what the palette shows and what a placed node is created from.
+// small, curated set for the greenfield MVP — breadth comes later.
+//
+// Display labels are NOT stored here: they are i18n keys resolved at render
+// time (palette.resource.<type> and palette.group.<group>), so switching
+// language updates the palette and the node badges live.
+export type GroupKey = 'network' | 'compute' | 'storage' | 'database' | 'security';
+
 export interface CatalogEntry {
-  /** Terraform resource type, e.g. "aws_vpc". */
+  /** Terraform resource type, e.g. "aws_vpc". Also the i18n label key suffix. */
   type: string;
-  /** Human label shown in the palette and on the node. */
-  label: string;
-  /** One-word group for palette organization. */
-  group: 'Network' | 'Compute' | 'Storage' | 'Database' | 'Security';
+  /** Group key; the i18n group-header key suffix. */
+  group: GroupKey;
 }
 
 export const catalog: CatalogEntry[] = [
-  { type: 'aws_vpc', label: 'VPC', group: 'Network' },
-  { type: 'aws_subnet', label: 'Subnet', group: 'Network' },
-  { type: 'aws_lb', label: 'Load Balancer', group: 'Network' },
-  { type: 'aws_instance', label: 'EC2 Instance', group: 'Compute' },
-  { type: 'aws_lambda_function', label: 'Lambda Function', group: 'Compute' },
-  { type: 'aws_s3_bucket', label: 'S3 Bucket', group: 'Storage' },
-  { type: 'aws_db_instance', label: 'RDS Database', group: 'Database' },
-  { type: 'aws_security_group', label: 'Security Group', group: 'Security' },
-  { type: 'aws_iam_role', label: 'IAM Role', group: 'Security' },
+  { type: 'aws_vpc', group: 'network' },
+  { type: 'aws_subnet', group: 'network' },
+  { type: 'aws_lb', group: 'network' },
+  { type: 'aws_instance', group: 'compute' },
+  { type: 'aws_lambda_function', group: 'compute' },
+  { type: 'aws_s3_bucket', group: 'storage' },
+  { type: 'aws_db_instance', group: 'database' },
+  { type: 'aws_security_group', group: 'security' },
+  { type: 'aws_iam_role', group: 'security' },
 ];
 
-const byType = new Map(catalog.map((e) => [e.type, e]));
-
-/** labelFor returns the catalog label for a type, falling back to the type. */
-export function labelFor(type: string): string {
-  return byType.get(type)?.label ?? type;
-}
+/** The order groups are shown in the palette. */
+export const groupOrder: GroupKey[] = ['network', 'compute', 'storage', 'database', 'security'];
 
 /** shortType strips the provider prefix: "aws_vpc" -> "vpc". Used to derive
  * default resource names. */

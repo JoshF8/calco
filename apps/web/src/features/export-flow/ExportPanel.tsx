@@ -43,7 +43,11 @@ export function ExportPanel() {
       </div>
 
       {mutation.isError && (
-        <div className="border-b border-destructive/30 bg-destructive/10 px-4 py-2 text-xs text-destructive">
+        <div
+          role="alert"
+          className="border-b border-destructive/30 bg-destructive/10 px-4 py-2 text-xs text-destructive"
+        >
+          <span className="sr-only">{t('export.errorPrefix')}: </span>
           {mutation.error.message}
         </div>
       )}
@@ -56,10 +60,12 @@ export function ExportPanel() {
 
       {files && filenames.length > 0 && (
         <>
-          <div className="flex gap-1 overflow-x-auto border-b px-2 py-1.5">
+          <div role="tablist" className="flex gap-1 overflow-x-auto border-b px-2 py-1.5">
             {filenames.map((name) => (
               <button
                 key={name}
+                role="tab"
+                aria-selected={active === name}
                 onClick={() => setActive(name)}
                 className={
                   'rounded px-2 py-1 font-mono text-xs ' +
