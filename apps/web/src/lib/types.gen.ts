@@ -4,6 +4,26 @@
  */
 
 export interface paths {
+    "/api/v1/generate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Generate Terraform from a graph model
+         * @description Validates the supplied graph model and renders it to Terraform files. A 422 is returned if the model is not generator-safe (dangling references, a dependency cycle, invalid identifiers, and so on). The output is syntactically valid HCL; it is not checked against provider schemas.
+         */
+        post: operations["generate-hcl"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/hello": {
         parameters: {
             query?: never;
@@ -48,6 +68,31 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        AttrValue: {
+            /** @description Referenced attribute name (when kind=ref), emitted bare in HCL. */
+            attribute?: string;
+            /** @description Child values (when kind=list). */
+            items?: components["schemas"]["AttrValue"][] | null;
+            /**
+             * @description Value variant: literal scalar, reference to another resource, or list.
+             * @enum {string}
+             */
+            kind: "literal" | "ref" | "list";
+            /**
+             * @description Scalar type (when kind=literal).
+             * @enum {string}
+             */
+            litType?: "string" | "number" | "bool";
+            /** @description Referenced resource ID (when kind=ref). */
+            target?: string;
+            /** @description Canonical literal text (when kind=literal); numbers are kept as text to preserve precision. */
+            value?: string;
+        };
+        Edge: {
+            attribute: string;
+            from: string;
+            to: string;
+        };
         ErrorDetail: {
             /** @description Where the error occurred, e.g. 'body.items[3].tags' or 'path.thing-id' */
             location?: string;
@@ -95,6 +140,18 @@ export interface components {
              */
             type: string;
         };
+        GenerateOutputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example http://localhost:8080/schemas/GenerateOutputBody.json
+             */
+            readonly $schema?: string;
+            /** @description Generated Terraform files, keyed by filename (e.g. main.tf). */
+            files: {
+                [key: string]: string;
+            };
+        };
         GreetOutputBody: {
             /**
              * Format: uri
@@ -121,6 +178,56 @@ export interface components {
              */
             status: string;
         };
+        Model: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example http://localhost:8080/schemas/Model.json
+             */
+            readonly $schema?: string;
+            edges?: components["schemas"]["Edge"][] | null;
+            outputs?: components["schemas"]["Output"][] | null;
+            resources?: components["schemas"]["Resource"][] | null;
+            variables?: components["schemas"]["Variable"][] | null;
+        };
+        Output: {
+            description?: string;
+            name: string;
+            sensitive?: boolean;
+            value: components["schemas"]["AttrValue"];
+        };
+        Position: {
+            /** Format: double */
+            x: number;
+            /** Format: double */
+            y: number;
+        };
+        Resource: {
+            attributes?: {
+                [key: string]: components["schemas"]["AttrValue"];
+            };
+            /** @description Stable internal resource ID (UUID). */
+            id: string;
+            /**
+             * @description Terraform name slug.
+             * @example main
+             */
+            name: string;
+            position?: components["schemas"]["Position"];
+            /**
+             * @description Terraform resource type.
+             * @example aws_vpc
+             */
+            type: string;
+        };
+        Variable: {
+            default?: components["schemas"]["AttrValue"];
+            description?: string;
+            name: string;
+            sensitive?: boolean;
+            /** @example string */
+            type: string;
+        };
     };
     responses: never;
     parameters: never;
@@ -130,6 +237,39 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    "generate-hcl": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Model"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GenerateOutputBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
     "hello-greet": {
         parameters: {
             query?: {

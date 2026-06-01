@@ -79,7 +79,7 @@ Detalle completo en [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md). Decisiones y
 - [x] Marca y sistema de diseño (`docs/BRAND.md`)
 - [x] Documento de arquitectura (`docs/ARCHITECTURE.md`) y ADRs
 - [x] Scaffold del repo (monorepo, lint, CI)
-- [ ] Graph model y generador de HCL (greenfield)
+- [x] Graph model y generador de HCL (greenfield)
 - [ ] Canvas con React Flow (~15 recursos AWS)
 - [ ] Sandbox del Terraform runner
 - [ ] Importador brownfield (visualización read-only)

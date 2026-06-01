@@ -23,8 +23,10 @@ import (
 	"github.com/go-chi/cors"
 
 	httpdocs "github.com/JoshF8/calco/apps/server/internal/adapters/inbound/http/docs"
+	httpgenerate "github.com/JoshF8/calco/apps/server/internal/adapters/inbound/http/generate"
 	httphealth "github.com/JoshF8/calco/apps/server/internal/adapters/inbound/http/health"
 	httphello "github.com/JoshF8/calco/apps/server/internal/adapters/inbound/http/hello"
+	appgenerate "github.com/JoshF8/calco/apps/server/internal/application/generate"
 	apphello "github.com/JoshF8/calco/apps/server/internal/application/hello"
 	"github.com/JoshF8/calco/apps/server/internal/config"
 	"github.com/JoshF8/calco/apps/server/internal/observability"
@@ -49,6 +51,7 @@ func run() error {
 
 	// ─── Use cases (manual DI) ─────────────────────────────────────────────
 	greetUser := apphello.NewGreetUser()
+	generateHCL := appgenerate.NewGenerateHCL()
 
 	// ─── HTTP server ───────────────────────────────────────────────────────
 	router := chi.NewRouter()
@@ -76,6 +79,7 @@ func run() error {
 	api := humachi.New(router, humaCfg)
 	httphealth.Register(api)
 	httphello.Register(api, greetUser)
+	httpgenerate.Register(api, generateHCL)
 
 	// Serve Scalar API reference at /docs.
 	router.Get("/docs", httpdocs.Handler(appName+" API Reference", "/openapi.json"))
