@@ -80,7 +80,7 @@ Full details in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md). Decisions and ra
 - [x] Architecture document (`docs/ARCHITECTURE.md`) and ADRs
 - [x] Repository scaffold (monorepo, lint, CI)
 - [x] Graph model and HCL generator (greenfield)
-- [ ] Canvas with React Flow (~15 AWS resources)
+- [x] Canvas with React Flow (palette → generate)
 - [ ] Terraform runner sandbox
 - [ ] Brownfield importer (read-only visualization)
 - [ ] Self-hosted MVP (Docker Compose)

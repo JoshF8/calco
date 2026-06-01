@@ -39,6 +39,24 @@
       "aws_iam_role": "Rol IAM"
     }
   },
+  "inspector": {
+    "tabInspector": "Inspector",
+    "tabTerraform": "Terraform",
+    "empty": "Seleccioná un recurso para editarlo.",
+    "multiple_one": "{{count}} recurso seleccionado.",
+    "multiple_other": "{{count}} recursos seleccionados.",
+    "name": "Nombre",
+    "nameInvalid": "Debe ser un identificador Terraform válido.",
+    "nameTaken": "Nombre ya usado para este tipo.",
+    "attributes": "Atributos",
+    "noAttributes": "Sin atributos todavía.",
+    "key": "clave",
+    "type": "Tipo",
+    "value": "valor",
+    "add": "Agregar",
+    "remove": "Quitar",
+    "reference": "referencia"
+  },
   "export": {
     "title": "Terraform",
     "button": "Generar",

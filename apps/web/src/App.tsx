@@ -4,7 +4,7 @@ import { Languages, Moon, Sun } from 'lucide-react';
 import { Button } from '@/shared/components/ui/button';
 import { Canvas } from '@/features/canvas/Canvas';
 import { Palette } from '@/features/canvas/Palette';
-import { ExportPanel } from '@/features/export-flow/ExportPanel';
+import { RightPanel } from '@/features/inspector/RightPanel';
 
 function useTheme() {
   const [isDark, setIsDark] = useState<boolean>(() =>
@@ -64,7 +64,7 @@ export default function App() {
         <main className="relative min-w-0 flex-1">
           <Canvas dark={isDark} />
         </main>
-        <ExportPanel />
+        <RightPanel />
       </div>
     </div>
   );

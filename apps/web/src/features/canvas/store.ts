@@ -35,6 +35,12 @@ interface CanvasActions {
   onNodesChange: (changes: NodeChange<ResourceNode>[]) => void;
   /** onEdgesChange applies React Flow edge change events to the store. */
   onEdgesChange: (changes: EdgeChange<Edge>[]) => void;
+  /** setNodeName renames a resource (its Terraform name slug). */
+  setNodeName: (id: string, name: string) => void;
+  /** setAttribute sets or replaces an attribute on a resource. */
+  setAttribute: (id: string, key: string, value: ApiAttrValue) => void;
+  /** removeAttribute deletes an attribute from a resource. */
+  removeAttribute: (id: string, key: string) => void;
   /** clear empties the canvas. */
   clear: () => void;
   /** toApiModel projects the canvas into the generate endpoint's wire shape. */
@@ -74,6 +80,28 @@ export const useCanvasStore = create<CanvasState & CanvasActions>((set, get) => 
 
   onNodesChange: (changes) => set((s) => ({ nodes: applyNodeChanges(changes, s.nodes) })),
   onEdgesChange: (changes) => set((s) => ({ edges: applyEdgeChanges(changes, s.edges) })),
+
+  setNodeName: (id, name) =>
+    set((s) => ({
+      nodes: s.nodes.map((n) => (n.id === id ? { ...n, data: { ...n.data, name } } : n)),
+    })),
+
+  setAttribute: (id, key, value) =>
+    set((s) => ({
+      nodes: s.nodes.map((n) =>
+        n.id === id ? { ...n, data: { ...n.data, attributes: { ...n.data.attributes, [key]: value } } } : n,
+      ),
+    })),
+
+  removeAttribute: (id, key) =>
+    set((s) => ({
+      nodes: s.nodes.map((n) => {
+        if (n.id !== id) return n;
+        const attributes = { ...n.data.attributes };
+        delete attributes[key];
+        return { ...n, data: { ...n.data, attributes } };
+      }),
+    })),
 
   clear: () => set({ nodes: [], edges: [] }),
 

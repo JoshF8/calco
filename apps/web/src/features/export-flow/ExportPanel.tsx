@@ -28,14 +28,11 @@ export function ExportPanel() {
   const filenames = files ? Object.keys(files).sort() : [];
 
   return (
-    <aside className="flex w-[420px] shrink-0 flex-col border-l bg-card/40">
+    <div className="flex h-full flex-col">
       <div className="flex items-center justify-between border-b px-4 py-3">
-        <div>
-          <h2 className="text-sm font-medium">{t('export.title')}</h2>
-          <p className="mt-0.5 text-xs text-muted-foreground">
-            {t('export.resourceCount', { count: resourceCount })}
-          </p>
-        </div>
+        <p className="text-xs text-muted-foreground">
+          {t('export.resourceCount', { count: resourceCount })}
+        </p>
         <Button size="sm" onClick={() => mutation.mutate()} disabled={resourceCount === 0 || mutation.isPending}>
           {mutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileCode className="h-4 w-4" />}
           {t('export.button')}
@@ -92,7 +89,7 @@ export function ExportPanel() {
           </div>
         </>
       )}
-    </aside>
+    </div>
   );
 }
 

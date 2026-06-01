@@ -38,6 +38,42 @@ describe('canvas store', () => {
     expect(useCanvasStore.getState().nodes).toHaveLength(0);
   });
 
+  it('sets, edits, and removes attributes', () => {
+    useCanvasStore.getState().addResource('aws_vpc');
+    const id = useCanvasStore.getState().nodes[0].id;
+
+    useCanvasStore.getState().setAttribute(id, 'cidr_block', {
+      kind: 'literal',
+      litType: 'string',
+      value: '10.0.0.0/16',
+    });
+    expect(useCanvasStore.getState().nodes[0].data.attributes.cidr_block).toEqual({
+      kind: 'literal',
+      litType: 'string',
+      value: '10.0.0.0/16',
+    });
+
+    useCanvasStore.getState().removeAttribute(id, 'cidr_block');
+    expect(useCanvasStore.getState().nodes[0].data.attributes.cidr_block).toBeUndefined();
+  });
+
+  it('renames a node', () => {
+    useCanvasStore.getState().addResource('aws_vpc');
+    const id = useCanvasStore.getState().nodes[0].id;
+    useCanvasStore.getState().setNodeName(id, 'primary');
+    expect(useCanvasStore.getState().nodes[0].data.name).toBe('primary');
+  });
+
+  it('attributes set via the store reach toApiModel', () => {
+    useCanvasStore.getState().addResource('aws_vpc');
+    const id = useCanvasStore.getState().nodes[0].id;
+    useCanvasStore.getState().setAttribute(id, 'enabled', { kind: 'literal', litType: 'bool', value: 'true' });
+    const model = useCanvasStore.getState().toApiModel();
+    expect(model.resources![0].attributes).toEqual({
+      enabled: { kind: 'literal', litType: 'bool', value: 'true' },
+    });
+  });
+
   it('toApiModel projects nodes into the wire shape', () => {
     useCanvasStore.getState().addResource('aws_vpc');
     const model = useCanvasStore.getState().toApiModel();
