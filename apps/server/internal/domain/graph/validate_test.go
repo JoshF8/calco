@@ -129,6 +129,13 @@ func TestValidateFailures(t *testing.T) {
 			func(m *Model) { m.Edges = append(m.Edges, m.Edges[0]) },
 			ErrDuplicateEdge,
 		},
+		{
+			"injection via attribute key",
+			func(m *Model) {
+				m.Resources[0].Attributes["x\"\n  injected = \"y"] = String("z")
+			},
+			ErrInvalidName,
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

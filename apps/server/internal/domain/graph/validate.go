@@ -22,8 +22,9 @@ var typeRe = regexp.MustCompile(`^[a-z][a-z0-9_]*$`)
 // Invariants:
 //   - each resource has a valid UUID ID, a valid type, and a valid name slug;
 //   - resource IDs are unique and addresses (type.name) are unique;
-//   - every attribute value is internally consistent and every reference
-//     points at an existing resource;
+//   - every attribute key is a valid identifier, every attribute value is
+//     internally consistent, and every reference points at an existing
+//     resource;
 //   - every edge connects two existing resources, is not a self-loop, and is
 //     not a duplicate of another edge;
 //   - variable and output names are valid identifiers and unique, variable
@@ -75,6 +76,11 @@ func (m *Model) Validate() error {
 		}
 		sort.Strings(names)
 		for _, name := range names {
+			// Attribute keys are emitted as bare HCL argument names with no
+			// escaping, so they must be valid identifiers.
+			if !nameRe.MatchString(name) {
+				errs = append(errs, fmt.Errorf("%w: attribute key %q on %s", ErrInvalidName, name, r.Address()))
+			}
 			if !r.Attributes[name].Valid() {
 				errs = append(errs, fmt.Errorf("%w: %s.%s", ErrInvalidValue, r.Address(), name))
 			}

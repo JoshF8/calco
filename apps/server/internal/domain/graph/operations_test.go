@@ -184,6 +184,9 @@ func TestSetAndRemoveAttribute(t *testing.T) {
 	if err := m.SetAttribute(rid("99"), "x", String("y")); !errors.Is(err, ErrResourceNotFound) {
 		t.Fatalf("set not found: err = %v", err)
 	}
+	if err := m.SetAttribute(a, "bad key", String("y")); !errors.Is(err, ErrInvalidName) {
+		t.Fatalf("invalid key: err = %v", err)
+	}
 
 	if err := m.RemoveAttribute(a, "cidr_block"); err != nil {
 		t.Fatalf("remove: %v", err)

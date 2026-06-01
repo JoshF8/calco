@@ -5,12 +5,15 @@ import (
 	"fmt"
 	"regexp"
 	"strconv"
+
+	"github.com/zclconf/go-cty/cty"
 )
 
-// numberRe matches a finite decimal number. strconv.ParseFloat alone would
-// also accept "Inf", "NaN", hex floats ("0x1p4"), and a leading '+', none of
-// which are valid HCL numbers.
-var numberRe = regexp.MustCompile(`^-?[0-9]+(\.[0-9]+)?([eE][-+]?[0-9]+)?$`)
+// numberRe matches a finite decimal number with no leading zeros. It rejects
+// "Inf"/"NaN"/hex floats/leading '+' (which strconv.ParseFloat would accept)
+// and "007"/"065535" (which cty would silently normalize), but it cannot bound
+// the exponent — that is enforced separately via cty in Valid.
+var numberRe = regexp.MustCompile(`^-?(0|[1-9][0-9]*)(\.[0-9]+)?([eE][-+]?[0-9]+)?$`)
 
 // ValueKind tags the variant of an AttrValue.
 type ValueKind string
@@ -113,12 +116,22 @@ func (v AttrValue) Valid() bool {
 		case LitString, LitBool:
 			return true
 		case LitNumber:
-			return numberRe.MatchString(v.Lit)
+			if !numberRe.MatchString(v.Lit) {
+				return false
+			}
+			// cty is the source of truth for whether the text is a usable
+			// Terraform number: it rejects out-of-range exponents that the
+			// regex cannot bound, and yields +Inf for some huge values.
+			n, err := cty.ParseNumberVal(v.Lit)
+			return err == nil && !n.AsBigFloat().IsInf()
 		default:
 			return false
 		}
 	case KindRef:
-		return v.RefTarget != "" && v.RefAttribute != ""
+		// RefAttribute is emitted as a bare HCL traversal segment with no
+		// escaping, so it must be a valid identifier — otherwise a crafted
+		// value could inject arbitrary HCL into the generated output.
+		return v.RefTarget != "" && nameRe.MatchString(v.RefAttribute)
 	case KindList:
 		for _, it := range v.Items {
 			if !it.Valid() {

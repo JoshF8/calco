@@ -135,6 +135,9 @@ func (m *Model) SetAttribute(id ResourceID, name string, v AttrValue) error {
 	if !ok {
 		return fmt.Errorf("%w: %s", ErrResourceNotFound, id)
 	}
+	if !nameRe.MatchString(name) {
+		return fmt.Errorf("%w: attribute key %q", ErrInvalidName, name)
+	}
 	if !v.Valid() {
 		return fmt.Errorf("%w: %s.%s", ErrInvalidValue, r.Address(), name)
 	}

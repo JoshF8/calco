@@ -175,6 +175,55 @@ func TestGenerateDeterministic(t *testing.T) {
 	}
 }
 
+func TestGenerateNonHashicorpProviderSource(t *testing.T) {
+	m := &graph.Model{Resources: []graph.Resource{
+		{ID: rid("01"), Type: "docker_container", Name: "app", Attributes: map[string]graph.AttrValue{
+			"name": graph.String("app"),
+		}},
+	}}
+	files, err := Generate(m)
+	if err != nil {
+		t.Fatal(err)
+	}
+	prov := files["providers.tf"]
+	if err := Parse("providers.tf", prov); err != nil {
+		t.Fatalf("invalid providers.tf: %v", err)
+	}
+	if !strings.Contains(norm(prov), `source = "kreuzwerker/docker"`) {
+		t.Fatalf("docker provider source not corrected; providers.tf:\n%s", prov)
+	}
+	if strings.Contains(prov, "hashicorp/docker") {
+		t.Fatalf("docker still mapped to nonexistent hashicorp/docker; providers.tf:\n%s", prov)
+	}
+}
+
+// Generate must reject identifier-position injection attempts (a reference
+// attribute or attribute key that is not a valid identifier) before emitting
+// any HCL — Validate is the gate.
+func TestGenerateRejectsIdentifierInjection(t *testing.T) {
+	target := rid("01")
+	cases := map[string]*graph.Model{
+		"ref attribute injection": {Resources: []graph.Resource{
+			{ID: target, Type: "aws_vpc", Name: "main", Attributes: map[string]graph.AttrValue{}},
+			{ID: rid("02"), Type: "aws_subnet", Name: "a", Attributes: map[string]graph.AttrValue{
+				"vpc_id": graph.AttrValue{Kind: graph.KindRef, RefTarget: target, RefAttribute: "id\n  injected = \"x\""},
+			}},
+		}},
+		"attribute key injection": {Resources: []graph.Resource{
+			{ID: target, Type: "aws_vpc", Name: "main", Attributes: map[string]graph.AttrValue{
+				"cidr_block\"\n  injected = \"x": graph.String("10.0.0.0/16"),
+			}},
+		}},
+	}
+	for name, m := range cases {
+		t.Run(name, func(t *testing.T) {
+			if _, err := Generate(m); err == nil {
+				t.Fatal("expected Generate to reject the injection attempt")
+			}
+		})
+	}
+}
+
 func TestGenerateRejectsInvalidModel(t *testing.T) {
 	m := &graph.Model{Resources: []graph.Resource{
 		{ID: "not-a-uuid", Type: "aws_vpc", Name: "main"},

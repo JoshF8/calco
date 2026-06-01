@@ -28,8 +28,15 @@ type Files map[string]string
 //
 // It runs Model.Validate first and returns that error if the model is not
 // generator-safe, so a nil error guarantees the model's invariants hold (no
-// dangling references, acyclic, valid identifiers) and the output is
-// syntactically valid HCL. Only non-empty files are returned:
+// dangling references, acyclic, valid identifiers in every emitted position)
+// and the output is syntactically valid HCL.
+//
+// Scope of the guarantee: HCL *syntax*, not Terraform *schema* validity. The
+// output is not checked against provider schemas, so a successful Generate
+// does not imply `terraform validate` will pass — an attribute may not exist
+// on the resource, a variable type expression may be nonsensical, and so on.
+//
+// Only non-empty files are returned:
 //   - main.tf       resources, in dependency (topological) order
 //   - providers.tf  a required_providers + provider block per provider prefix
 //   - variables.tf  input variables (omitted if there are none)
@@ -96,7 +103,7 @@ func renderProviders(resources []graph.Resource) string {
 	rp := tf.AppendNewBlock("required_providers", nil).Body()
 	for _, p := range sorted {
 		rp.SetAttributeValue(p, cty.ObjectVal(map[string]cty.Value{
-			"source": cty.StringVal("hashicorp/" + p),
+			"source": cty.StringVal(providerSource(p)),
 		}))
 	}
 	for _, p := range sorted {
@@ -205,7 +212,8 @@ func litToCty(v graph.AttrValue) cty.Value {
 		// whole reason numbers are stored as strings rather than float64.
 		n, err := cty.ParseNumberVal(v.Lit)
 		if err != nil {
-			// Unreachable after Valid(); fall back to a string.
+			// Unreachable: Valid() (run by Validate, run by Generate) confirms
+			// cty.ParseNumberVal succeeds with a finite value before we get here.
 			return cty.StringVal(v.Lit)
 		}
 		return n
@@ -221,9 +229,34 @@ func providerPrefix(resourceType string) string {
 	return resourceType
 }
 
-// Parse re-parses generated HCL to confirm it is syntactically valid. It is
-// used by tests (and available to callers) as a cheap correctness gate that
-// does not require a terraform binary.
+// nonHashicorpSources maps provider local names whose registry source is not
+// hashicorp/<name>. Without this, e.g. a docker_ resource would emit
+// source = "hashicorp/docker" (nonexistent) and `terraform init` would fail.
+// Providers absent from this table fall back to hashicorp/<prefix>, which is
+// correct for aws, google, azurerm, kubernetes, null, random, and the rest of
+// the HashiCorp-published set.
+var nonHashicorpSources = map[string]string{
+	"docker":       "kreuzwerker/docker",
+	"github":       "integrations/github",
+	"cloudflare":   "cloudflare/cloudflare",
+	"datadog":      "DataDog/datadog",
+	"digitalocean": "digitalocean/digitalocean",
+	"mongodbatlas": "mongodb/mongodbatlas",
+}
+
+func providerSource(prefix string) string {
+	if s, ok := nonHashicorpSources[prefix]; ok {
+		return s
+	}
+	return "hashicorp/" + prefix
+}
+
+// Parse re-parses generated HCL to confirm it is syntactically valid. It
+// checks HCL *syntax* only via hclsyntax — not Terraform *schema* validity
+// (provider arguments, meta-argument types, variable type expressions), which
+// would require provider schemas. Passing Parse therefore does not imply
+// `terraform validate` will succeed. It is a cheap gate that needs no
+// terraform binary.
 func Parse(filename, content string) error {
 	_, diags := hclsyntax.ParseConfig([]byte(content), filename, hcl.Pos{Line: 1, Column: 1})
 	if diags.HasErrors() {

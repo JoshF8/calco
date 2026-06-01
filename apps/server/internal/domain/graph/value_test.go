@@ -102,6 +102,12 @@ func TestAttrValueValid(t *testing.T) {
 		{"leading plus", AttrValue{Kind: KindLiteral, LitType: LitNumber, Lit: "+5"}, false},
 		{"valid exponent", NumberText("1e10"), true},
 		{"float-via-Inf-constructor", Float(math.Inf(1)), false},
+		{"leading zeros", NumberText("065535"), false},
+		{"exponent out of range", NumberText("1e2147483648"), false},
+		{"exponent yielding inf", NumberText("1e1000000000"), false},
+		{"ref with non-identifier attribute", AttrValue{Kind: KindRef, RefTarget: "x", RefAttribute: `id" injected="pwned`}, false},
+		{"ref with expression attribute", AttrValue{Kind: KindRef, RefTarget: "x", RefAttribute: "a ? b : c"}, false},
+		{"ref with valid attribute", Ref(ResourceID("x"), "cidr_block"), true},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
