@@ -48,6 +48,9 @@ jobs:
       - name: Lint
         run: pnpm --filter @calco/web lint
 
+      - name: Test
+        run: pnpm --filter @calco/web test
+
       - name: Build
         run: pnpm --filter @calco/web build
 

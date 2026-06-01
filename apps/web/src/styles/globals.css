@@ -135,3 +135,30 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
+
+/* ────────────────────────────────────────────────────────────────────
+   React Flow chrome, themed to the brand.
+   Mapped to semantic tokens so the controls, minimap, background, and
+   edges adapt to dark mode automatically instead of rendering white.
+   ──────────────────────────────────────────────────────────────────── */
+.react-flow {
+  --xy-background-color: var(--background);
+  --xy-background-pattern-color: var(--border);
+  --xy-edge-stroke: var(--muted-foreground);
+  --xy-edge-stroke-selected: var(--accent);
+  --xy-connectionline-stroke: var(--accent);
+  --xy-attribution-background-color: transparent;
+}
+
+.react-flow__controls {
+  --xy-controls-button-background-color: var(--card);
+  --xy-controls-button-background-color-hover: var(--secondary);
+  --xy-controls-button-color: var(--foreground);
+  --xy-controls-button-color-hover: var(--foreground);
+  --xy-controls-button-border-color: var(--border);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.12);
+}
+

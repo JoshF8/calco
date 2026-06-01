@@ -17,10 +17,18 @@
     "light": "Light",
     "dark": "Dark"
   },
-  "server": {
-    "label": "Server says",
-    "loading": "calling…",
-    "error": "request failed"
+  "palette": {
+    "title": "Resources",
+    "hint": "Click to add to the canvas"
+  },
+  "export": {
+    "title": "Terraform",
+    "button": "Generate",
+    "resourceCount_one": "{{count}} resource on the canvas",
+    "resourceCount_other": "{{count}} resources on the canvas",
+    "emptyCanvas": "Add resources from the left, then generate.",
+    "prompt": "Click Generate to render Terraform from the canvas.",
+    "download": "Download .tf"
   },
   "footer": {
     "copyright": "© {{year}} Joshua Franco · Apache 2.0"
