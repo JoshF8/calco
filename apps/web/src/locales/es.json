@@ -49,6 +49,8 @@
     "name": "Nombre",
     "nameInvalid": "Debe ser un identificador Terraform válido.",
     "nameTaken": "Nombre ya usado para este tipo.",
+    "containedIn": "Contenido en",
+    "containedHint": "Definido al anidar en el canvas; arrastrá afuera para sacarlo.",
     "attributes": "Atributos",
     "noAttributes": "Sin atributos todavía.",
     "key": "clave",

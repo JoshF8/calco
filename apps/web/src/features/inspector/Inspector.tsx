@@ -102,6 +102,16 @@ function ResourceForm({ node, nodes }: { node: ResourceNode; nodes: ResourceNode
         )}
       </div>
 
+      {node.parentId && (
+        <div className="border-b px-4 py-3">
+          <div className="text-xs font-medium">{t('inspector.containedIn')}</div>
+          <div className="mt-1 font-mono text-xs text-accent">
+            {targetLabel(node.parentId)}
+          </div>
+          <p className="mt-1 text-[11px] text-muted-foreground">{t('inspector.containedHint')}</p>
+        </div>
+      )}
+
       <div className="flex-1 px-4 py-3">
         <div className="mb-2 text-xs font-medium">{t('inspector.attributes')}</div>
         {attrKeys.length === 0 && (

@@ -85,51 +85,54 @@ describe('canvas store', () => {
     expect(bucket.width).toBeUndefined();
   });
 
-  it('nestNode sets parent, position, the reference, and parent-first order', () => {
+  it('nestNode sets parent and position without storing a ref, parent-first', () => {
     const { addResource } = useCanvasStore.getState();
     addResource('aws_vpc');
     addResource('aws_subnet');
     const vpc = useCanvasStore.getState().nodes.find((n) => n.data.type === 'aws_vpc')!;
     const subnet = useCanvasStore.getState().nodes.find((n) => n.data.type === 'aws_subnet')!;
 
-    useCanvasStore.getState().nestNode(subnet.id, vpc.id, { x: 10, y: 30 }, 'vpc_id');
+    useCanvasStore.getState().nestNode(subnet.id, vpc.id, { x: 10, y: 30 });
 
     const nodes = useCanvasStore.getState().nodes;
     const s = nodes.find((n) => n.id === subnet.id)!;
     expect(s.parentId).toBe(vpc.id);
     expect(s.position).toEqual({ x: 10, y: 30 });
-    expect(s.data.attributes.vpc_id).toEqual({ kind: 'ref', target: vpc.id, attribute: 'id' });
+    // The containment ref is derived in toApiModel, not stored on the node.
+    expect(s.data.attributes.vpc_id).toBeUndefined();
     // Parent must come before child.
     expect(nodes.findIndex((n) => n.id === vpc.id)).toBeLessThan(nodes.findIndex((n) => n.id === subnet.id));
   });
 
-  it('unnestNode clears parent and removes the reference', () => {
+  it('unnestNode clears parent and position', () => {
     const { addResource } = useCanvasStore.getState();
     addResource('aws_vpc');
     addResource('aws_subnet');
     const vpc = useCanvasStore.getState().nodes.find((n) => n.data.type === 'aws_vpc')!;
     const subnet = useCanvasStore.getState().nodes.find((n) => n.data.type === 'aws_subnet')!;
-    useCanvasStore.getState().nestNode(subnet.id, vpc.id, { x: 10, y: 30 }, 'vpc_id');
+    useCanvasStore.getState().nestNode(subnet.id, vpc.id, { x: 10, y: 30 });
 
-    useCanvasStore.getState().unnestNode(subnet.id, { x: 500, y: 500 }, 'vpc_id');
+    useCanvasStore.getState().unnestNode(subnet.id, { x: 500, y: 500 });
 
     const s = useCanvasStore.getState().nodes.find((n) => n.id === subnet.id)!;
     expect(s.parentId).toBeUndefined();
     expect(s.position).toEqual({ x: 500, y: 500 });
-    expect(s.data.attributes.vpc_id).toBeUndefined();
   });
 
-  it('a nested reference reaches toApiModel', () => {
+  it('derives and removes the containment ref via toApiModel from parentId', () => {
     const { addResource } = useCanvasStore.getState();
     addResource('aws_vpc');
     addResource('aws_subnet');
     const vpc = useCanvasStore.getState().nodes.find((n) => n.data.type === 'aws_vpc')!;
     const subnet = useCanvasStore.getState().nodes.find((n) => n.data.type === 'aws_subnet')!;
-    useCanvasStore.getState().nestNode(subnet.id, vpc.id, { x: 10, y: 30 }, 'vpc_id');
 
-    const model = useCanvasStore.getState().toApiModel();
-    const sub = model.resources!.find((r) => r.type === 'aws_subnet')!;
+    useCanvasStore.getState().nestNode(subnet.id, vpc.id, { x: 10, y: 30 });
+    const sub = useCanvasStore.getState().toApiModel().resources!.find((r) => r.type === 'aws_subnet')!;
     expect(sub.attributes!.vpc_id).toEqual({ kind: 'ref', target: vpc.id, attribute: 'id' });
+
+    useCanvasStore.getState().unnestNode(subnet.id, { x: 0, y: 0 });
+    const after = useCanvasStore.getState().toApiModel().resources!.find((r) => r.type === 'aws_subnet')!;
+    expect(after.attributes!.vpc_id).toBeUndefined();
   });
 
   it('toApiModel projects nodes into the wire shape', () => {

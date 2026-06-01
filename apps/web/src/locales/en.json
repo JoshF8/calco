@@ -49,6 +49,8 @@
     "name": "Name",
     "nameInvalid": "Must be a valid Terraform identifier.",
     "nameTaken": "Name already used for this type.",
+    "containedIn": "Contained in",
+    "containedHint": "Set by nesting on the canvas; drag out to detach.",
     "attributes": "Attributes",
     "noAttributes": "No attributes yet.",
     "key": "key",

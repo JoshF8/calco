@@ -15,7 +15,7 @@ import {
 } from '@xyflow/react';
 import type { components } from '@/lib/types.gen';
 import { shortType } from './catalog';
-import { containerSize, isContainer } from './containment';
+import { containerSize, isContainer, nestRule } from './containment';
 import type { ResourceNodeData } from './ResourceNode';
 
 export type ApiModel = components['schemas']['Model'];
@@ -44,13 +44,14 @@ interface CanvasActions {
   setAttribute: (id: string, key: string, value: ApiAttrValue) => void;
   /** removeAttribute deletes an attribute from a resource. */
   removeAttribute: (id: string, key: string) => void;
-  /** nestNode places a node inside a container: sets its parent, its
-   * container-relative position, and the reference attribute that encodes the
-   * containment in Terraform. */
-  nestNode: (id: string, parentId: string, position: { x: number; y: number }, attribute: string) => void;
-  /** unnestNode frees a node from its container: clears its parent, restores
-   * its absolute position, and removes the containment reference attribute. */
-  unnestNode: (id: string, position: { x: number; y: number }, attribute: string) => void;
+  /** nestNode places a node inside a container: sets its parent and its
+   * container-relative position. The containment reference is NOT stored — it
+   * is derived from parentId at projection time (toApiModel), so the visual
+   * and the model can never diverge. */
+  nestNode: (id: string, parentId: string, position: { x: number; y: number }) => void;
+  /** unnestNode frees a node from its container: clears its parent and restores
+   * its absolute position. */
+  unnestNode: (id: string, position: { x: number; y: number }) => void;
   /** clear empties the canvas. */
   clear: () => void;
   /** toApiModel projects the canvas into the generate endpoint's wire shape. */
@@ -95,12 +96,16 @@ export const useCanvasStore = create<CanvasState & CanvasActions>((set, get) => 
 
   addResource: (type) =>
     set((s) => {
-      const topLevel = s.nodes.filter((n) => !n.parentId).length;
       const container = isContainer(type);
+      // Spawn below the lowest top-level node so a new node never lands inside
+      // an existing container's frame (containers are wider/taller than a grid
+      // cell would account for).
+      const topLevel = s.nodes.filter((n) => !n.parentId);
+      const bottom = topLevel.reduce((m, n) => Math.max(m, n.position.y + (n.height ?? 84)), 40);
       const node: ResourceNode = {
         id: crypto.randomUUID(),
         type: container ? 'container' : 'resource',
-        position: { x: 80 + (topLevel % 4) * 260, y: 80 + Math.floor(topLevel / 4) * 220 },
+        position: { x: 80, y: bottom + 40 },
         selected: true,
         ...(container ? { width: containerSize[type].width, height: containerSize[type].height } : {}),
         data: { type, name: uniqueName(s.nodes, type), attributes: {} },
@@ -136,29 +141,15 @@ export const useCanvasStore = create<CanvasState & CanvasActions>((set, get) => 
       }),
     })),
 
-  nestNode: (id, parentId, position, attribute) =>
+  nestNode: (id, parentId, position) =>
     set((s) => {
-      const nodes = s.nodes.map((n) =>
-        n.id === id
-          ? {
-              ...n,
-              parentId,
-              position,
-              data: { ...n.data, attributes: { ...n.data.attributes, [attribute]: ref(parentId) } },
-            }
-          : n,
-      );
+      const nodes = s.nodes.map((n) => (n.id === id ? { ...n, parentId, position } : n));
       return { nodes: parentsFirst(nodes) };
     }),
 
-  unnestNode: (id, position, attribute) =>
+  unnestNode: (id, position) =>
     set((s) => {
-      const nodes = s.nodes.map((n) => {
-        if (n.id !== id) return n;
-        const attributes = { ...n.data.attributes };
-        delete attributes[attribute];
-        return { ...n, parentId: undefined, position, data: { ...n.data, attributes } };
-      });
+      const nodes = s.nodes.map((n) => (n.id === id ? { ...n, parentId: undefined, position } : n));
       return { nodes: parentsFirst(nodes) };
     }),
 
@@ -167,13 +158,20 @@ export const useCanvasStore = create<CanvasState & CanvasActions>((set, get) => 
   toApiModel: () => {
     const s = get();
     return {
-      resources: s.nodes.map((n) => ({
-        id: n.id,
-        type: n.data.type,
-        name: n.data.name,
-        attributes: n.data.attributes,
-        position: { x: n.position.x, y: n.position.y },
-      })),
+      resources: s.nodes.map((n) => {
+        // Derive the containment reference from parentId — the single source of
+        // truth — so it can never be edited away or drift from the visual.
+        const attributes = { ...n.data.attributes };
+        const rule = n.parentId ? nestRule(n.data.type) : undefined;
+        if (rule && n.parentId) attributes[rule.attribute] = ref(n.parentId);
+        return {
+          id: n.id,
+          type: n.data.type,
+          name: n.data.name,
+          attributes,
+          position: { x: n.position.x, y: n.position.y },
+        };
+      }),
       // Canonical edge direction (matches the server's domain model and
       // TopologicalSort): from = the dependent resource (the one holding the
       // reference), to = the dependency. When a connect handler is added it

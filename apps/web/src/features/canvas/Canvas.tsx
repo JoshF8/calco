@@ -8,6 +8,8 @@ import {
   useReactFlow,
   type Node,
   type NodeTypes,
+  type OnBeforeDelete,
+  type OnNodeDrag,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { useCanvasStore, type ResourceNode } from './store';
@@ -35,20 +37,20 @@ function Flow({ dark }: { dark: boolean }) {
   const onEdgesChange = useCanvasStore((s) => s.onEdgesChange);
   const nestNode = useCanvasStore((s) => s.nestNode);
   const unnestNode = useCanvasStore((s) => s.unnestNode);
-  const { getIntersectingNodes, getInternalNode } = useReactFlow();
+  const { getIntersectingNodes, getInternalNode } = useReactFlow<ResourceNode>();
 
   // On drop, project containment from geometry: if the node landed inside a
   // valid container, nest it (and create the reference); if it left its
   // container, free it (and drop the reference).
-  const onNodeDragStop = useCallback(
-    (_: unknown, node: ResourceNode) => {
+  const onNodeDragStop = useCallback<OnNodeDrag<ResourceNode>>(
+    (_, node) => {
       const rule = nestRule(node.data.type);
       const current = node.parentId ?? null;
 
       let target: Node | null = null;
       if (rule) {
         const hits = getIntersectingNodes(node).filter(
-          (n) => n.id !== node.id && (n.data as ResourceNode['data'])?.type === rule.parentType,
+          (n) => n.id !== node.id && n.data?.type === rule.parentType,
         );
         // Innermost (smallest) wins if several containers overlap.
         target = hits.sort((a, b) => area(a) - area(b))[0] ?? null;
@@ -58,32 +60,49 @@ function Flow({ dark }: { dark: boolean }) {
         const childAbs = getInternalNode(node.id)?.internals.positionAbsolute;
         const parentAbs = getInternalNode(target.id)?.internals.positionAbsolute;
         if (childAbs && parentAbs) {
-          nestNode(
-            node.id,
-            target.id,
-            { x: Math.max(childAbs.x - parentAbs.x, 8), y: Math.max(childAbs.y - parentAbs.y, 30) },
-            rule!.attribute,
-          );
+          nestNode(node.id, target.id, {
+            x: Math.max(childAbs.x - parentAbs.x, 8),
+            y: Math.max(childAbs.y - parentAbs.y, 30),
+          });
         }
       } else if (!target && current && rule) {
         const abs = getInternalNode(node.id)?.internals.positionAbsolute;
-        if (abs) unnestNode(node.id, abs, rule.attribute);
+        if (abs) unnestNode(node.id, abs);
       }
     },
     [getIntersectingNodes, getInternalNode, nestNode, unnestNode],
+  );
+
+  // Deleting a container would otherwise cascade-delete every nested child.
+  // Instead, detach the direct children of any deleted container (they survive
+  // as free nodes at their current absolute position) and delete only the
+  // nodes the user actually selected.
+  const onBeforeDelete = useCallback<OnBeforeDelete<ResourceNode>>(
+    async ({ nodes: toDelete }) => {
+      const explicit = new Set(toDelete.filter((n) => n.selected).map((n) => n.id));
+      for (const n of toDelete) {
+        if (!explicit.has(n.id) && n.parentId && explicit.has(n.parentId)) {
+          const abs = getInternalNode(n.id)?.internals.positionAbsolute;
+          if (abs) unnestNode(n.id, abs);
+        }
+      }
+      return { nodes: toDelete.filter((n) => explicit.has(n.id)), edges: [] };
+    },
+    [getInternalNode, unnestNode],
   );
 
   const colorMode = dark ? 'dark' : 'light';
   const mm = MINIMAP[colorMode];
 
   return (
-    <ReactFlow
+    <ReactFlow<ResourceNode>
       nodes={nodes}
       edges={edges}
       nodeTypes={nodeTypes}
       onNodesChange={onNodesChange}
       onEdgesChange={onEdgesChange}
       onNodeDragStop={onNodeDragStop}
+      onBeforeDelete={onBeforeDelete}
       colorMode={colorMode}
       fitView
       fitViewOptions={{ padding: 0.3, maxZoom: 1 }}
