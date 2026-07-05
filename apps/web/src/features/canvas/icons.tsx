@@ -1,0 +1,36 @@
+// A curated Lucide glyph per resource type. Monochrome and currentColor, so the
+// icon inherits the node's text colour and follows the light/dark theme. Any
+// type not in the map falls back to a neutral box.
+import type { ComponentType } from 'react';
+import {
+  Archive,
+  Box,
+  Database,
+  KeyRound,
+  Network,
+  Server,
+  ShieldCheck,
+  Split,
+  Waypoints,
+  Zap,
+} from 'lucide-react';
+
+type LucideIcon = ComponentType<{ className?: string }>;
+
+const iconByType: Record<string, LucideIcon> = {
+  aws_vpc: Network,
+  aws_subnet: Waypoints,
+  aws_lb: Split,
+  aws_instance: Server,
+  aws_lambda_function: Zap,
+  aws_s3_bucket: Archive,
+  aws_db_instance: Database,
+  aws_security_group: ShieldCheck,
+  aws_iam_role: KeyRound,
+};
+
+/** Renders the icon for a resource type. */
+export function ResourceIcon({ type, className }: { type: string; className?: string }) {
+  const Icon = iconByType[type] ?? Box;
+  return <Icon className={className} />;
+}

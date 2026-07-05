@@ -1,6 +1,7 @@
 import { NodeResizer, type NodeProps } from '@xyflow/react';
 import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/utils';
+import { ResourceIcon } from './icons';
 import { useCanvasStore } from './store';
 import type { ResourceNodeData } from './ResourceNode';
 
@@ -35,12 +36,24 @@ export function ContainerNode({ id, data, selected }: NodeProps) {
       )}
     >
       <NodeResizer isVisible={selected} minWidth={minWidth} minHeight={minHeight} />
-      <div className="pointer-events-none px-2.5 pt-1.5">
-        <div className="text-[10px] uppercase tracking-wide text-muted-foreground">
-          {t(`palette.resource.${d.type}`)}
-        </div>
-        <div className="font-mono text-xs font-medium text-foreground">
-          {d.type}.{d.name}
+      <div className="pointer-events-none flex items-center gap-2.5 px-2.5 pt-2">
+        <span className="relative h-9 w-9 shrink-0">
+          <span
+            aria-hidden="true"
+            className="absolute bottom-0 right-0 h-8 w-8 rounded-md bg-muted ring-1 ring-inset ring-border"
+          />
+          <span className="absolute left-0 top-0 grid h-8 w-8 place-items-center rounded-md bg-secondary text-foreground ring-1 ring-inset ring-border/70">
+            <ResourceIcon type={d.type} className="h-[18px] w-[18px]" />
+          </span>
+        </span>
+        <div className="flex min-w-0 flex-col gap-0.5">
+          <span className="truncate text-[10px] font-medium leading-none text-muted-foreground">
+            {t(`palette.resource.${d.type}`)}
+          </span>
+          <span className="truncate text-xs font-medium leading-tight text-foreground">{d.name}</span>
+          <span className="truncate font-mono text-[10px] leading-none text-muted-foreground">
+            {d.type}.{d.name}
+          </span>
         </div>
       </div>
     </div>

@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import { Plus } from 'lucide-react';
 import { catalog, groupOrder } from './catalog';
+import { ResourceIcon } from './icons';
 import { useCanvasStore } from './store';
 
 export function Palette() {
@@ -26,10 +27,19 @@ export function Palette() {
                 <button
                   key={entry.type}
                   onClick={() => addResource(entry.type)}
-                  className="group flex w-full items-center justify-between rounded-md px-2 py-1.5 text-left text-sm hover:bg-accent/10"
+                  className="group flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-left text-sm hover:bg-secondary"
                   title={entry.type}
                 >
-                  <span className="truncate">{t(`palette.resource.${entry.type}`)}</span>
+                  <span className="relative h-7 w-7 shrink-0">
+                    <span
+                      aria-hidden="true"
+                      className="absolute bottom-0 right-0 h-6 w-6 rounded-md bg-muted ring-1 ring-inset ring-border"
+                    />
+                    <span className="absolute left-0 top-0 grid h-6 w-6 place-items-center rounded-md bg-card text-foreground ring-1 ring-inset ring-border/70">
+                      <ResourceIcon type={entry.type} className="h-4 w-4" />
+                    </span>
+                  </span>
+                  <span className="min-w-0 flex-1 truncate">{t(`palette.resource.${entry.type}`)}</span>
                   <Plus className="h-3.5 w-3.5 shrink-0 text-muted-foreground opacity-0 group-hover:opacity-100" />
                 </button>
               ))}
