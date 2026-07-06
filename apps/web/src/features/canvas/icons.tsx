@@ -13,6 +13,7 @@ import {
   Server,
   ShieldCheck,
   Split,
+  Table2,
   Waypoints,
   Zap,
 } from 'lucide-react';
@@ -29,6 +30,7 @@ const iconByType: Record<string, LucideIcon> = {
   aws_lambda_function: Zap,
   aws_s3_bucket: Archive,
   aws_db_instance: Database,
+  aws_dynamodb_table: Table2,
   aws_security_group: ShieldCheck,
   aws_iam_role: KeyRound,
 };
