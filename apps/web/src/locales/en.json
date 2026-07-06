@@ -31,6 +31,7 @@
       "aws_vpc": "VPC",
       "aws_subnet": "Subnet",
       "aws_internet_gateway": "Internet Gateway",
+      "aws_lb_listener": "LB Listener",
       "aws_lb": "Load Balancer",
       "aws_lb_target_group": "Target Group",
       "aws_nat_gateway": "NAT Gateway",
