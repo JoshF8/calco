@@ -33,6 +33,7 @@
       "aws_internet_gateway": "Internet Gateway",
       "aws_lb": "Load Balancer",
       "aws_nat_gateway": "NAT Gateway",
+      "aws_eip": "Elastic IP",
       "aws_instance": "EC2 Instance",
       "aws_lambda_function": "Lambda Function",
       "aws_s3_bucket": "S3 Bucket",
