@@ -17,6 +17,7 @@ import {
   ShieldCheck,
   Split,
   Table2,
+  Target,
   Waypoints,
   Zap,
 } from 'lucide-react';
@@ -28,6 +29,7 @@ const iconByType: Record<string, LucideIcon> = {
   aws_subnet: Waypoints,
   aws_internet_gateway: Globe,
   aws_lb: Split,
+  aws_lb_target_group: Target,
   aws_nat_gateway: Router,
   aws_eip: MapPin,
   aws_instance: Server,

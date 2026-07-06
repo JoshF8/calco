@@ -18,6 +18,7 @@ export const catalog: CatalogEntry[] = [
   { type: 'aws_subnet', group: 'network' },
   { type: 'aws_internet_gateway', group: 'network' },
   { type: 'aws_lb', group: 'network' },
+  { type: 'aws_lb_target_group', group: 'network' },
   { type: 'aws_nat_gateway', group: 'network' },
   { type: 'aws_eip', group: 'network' },
   { type: 'aws_instance', group: 'compute' },
