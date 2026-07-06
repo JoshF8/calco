@@ -19,7 +19,7 @@
   },
   "palette": {
     "title": "Resources",
-    "hint": "Click to add to the canvas",
+    "hint": "Drag onto the canvas, or click to add",
     "group": {
       "network": "Network",
       "compute": "Compute",

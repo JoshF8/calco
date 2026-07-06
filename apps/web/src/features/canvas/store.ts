@@ -63,6 +63,10 @@ interface CanvasActions {
   /** addResource places a new resource of the given type with a unique
    * Terraform name and a non-overlapping position. */
   addResource: (type: string) => void;
+  /** addResourceAt places a new resource at an explicit position (canvas drop),
+   * optionally nested in a container (parentId) with the position taken as
+   * container-relative — so a palette drop inside a VPC/subnet nests at once. */
+  addResourceAt: (type: string, position: { x: number; y: number }, parentId?: string) => void;
   /** onNodesChange applies React Flow node change events (position, dimensions,
    * selection, removal) to the store. */
   onNodesChange: (changes: NodeChange<ResourceNode>[]) => void;
@@ -76,6 +80,11 @@ interface CanvasActions {
    * the stored source of truth; the Terraform reference it implies is derived
    * in toApiModel, so it can never drift from the drawn connection. */
   onConnect: (connection: Connection) => void;
+  /** reconnectEdge moves an existing connection's endpoint to a new node,
+   * re-validating against the same typed rules as onConnect: a ruled pair is
+   * re-oriented and re-stamped (keeping the edge id); an unruled or duplicate
+   * pair is refused (lastRejection) and the edge is left untouched. */
+  reconnectEdge: (oldEdge: Edge, connection: Connection) => void;
   /** clearRejection dismisses the transient connection-refusal hint. */
   clearRejection: () => void;
   /** showConnectionHint surfaces a plain i18n-key hint through the same
@@ -256,6 +265,23 @@ export const useCanvasStore = create<CanvasState & CanvasActions>((set, get) => 
       return { nodes: parentsFirst([...others, node]) };
     }),
 
+  addResourceAt: (type, position, parentId) =>
+    set((s) => {
+      const container = isContainer(type);
+      const node: ResourceNode = {
+        id: crypto.randomUUID(),
+        type: container ? 'container' : 'resource',
+        position,
+        selected: true,
+        ...(parentId ? { parentId } : {}),
+        ...(container ? { width: containerSize[type].width, height: containerSize[type].height } : {}),
+        data: { type, name: uniqueName(s.nodes, type), attributes: {} },
+      };
+      const others = s.nodes.map((n) => (n.selected ? { ...n, selected: false } : n));
+      // parentsFirst keeps a parent before its children and re-stamps the fixed z.
+      return { nodes: parentsFirst([...others, node]) };
+    }),
+
   onNodesChange: (changes) => set((s) => ({ nodes: applyNodeChanges(changes, s.nodes) })),
   onEdgesChange: (changes) => set((s) => ({ edges: applyEdgeChanges(changes, s.edges) })),
 
@@ -300,6 +326,33 @@ export const useCanvasStore = create<CanvasState & CanvasActions>((set, get) => 
         markerEnd: { type: MarkerType.ArrowClosed, color: 'var(--xy-edge-stroke)' },
       };
       return { edges: [...s.edges, edge], lastRejection: null };
+    }),
+
+  reconnectEdge: (oldEdge, { source, target }) =>
+    set((s) => {
+      if (!source || !target) return {};
+      if (source === target) return { lastRejection: { key: 'connection.invalid.self', at: Date.now() } };
+      const src = s.nodes.find((n) => n.id === source);
+      const tgt = s.nodes.find((n) => n.id === target);
+      if (!src || !tgt) return {};
+      // Same typed-rule gate as onConnect — a reconnection is a new connection
+      // for the moved endpoint, so it must re-validate and re-orient, never
+      // inherit the old edge's argument for a pair the rule wouldn't allow.
+      const rule = connectionRule(src.data.type, tgt.data.type);
+      if (!rule) {
+        return { lastRejection: { ...connectionReasonKey(src.data.type, tgt.data.type), at: Date.now() } };
+      }
+      const dependent = src.data.type === rule.from ? source : target;
+      const dependency = dependent === source ? target : source;
+      // Dedup as in onConnect, but ignore the edge being reconnected.
+      if (s.edges.some((e) => e.id !== oldEdge.id && e.source === dependent && e.target === dependency)) {
+        return { lastRejection: { key: 'connection.invalid.duplicate', at: Date.now() } };
+      }
+      const data: RefEdgeData = { attribute: rule.attribute, cardinality: rule.cardinality, refAttr: rule.refAttr };
+      return {
+        edges: s.edges.map((e) => (e.id === oldEdge.id ? { ...e, source: dependent, target: dependency, data } : e)),
+        lastRejection: null,
+      };
     }),
 
   clearRejection: () => set({ lastRejection: null }),

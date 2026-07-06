@@ -332,6 +332,76 @@ describe('canvas store', () => {
     expect(useCanvasStore.getState().lastRejection?.key).toBe('connection.hint.dropOnDot');
   });
 
+  it('addResourceAt places a node at a position, optionally nested', () => {
+    const { addResource, addResourceAt } = useCanvasStore.getState();
+    addResource('aws_vpc');
+    const vpc = useCanvasStore.getState().nodes[0];
+
+    addResourceAt('aws_subnet', { x: 20, y: 30 }, vpc.id);
+    const subnet = useCanvasStore.getState().nodes.find((n) => n.data.type === 'aws_subnet')!;
+    expect(subnet.position).toEqual({ x: 20, y: 30 });
+    expect(subnet.parentId).toBe(vpc.id);
+    expect(subnet.type).toBe('container');
+    expect(subnet.data.name).toBe('subnet_1');
+    // The drop selects the new node and deselects the rest.
+    const selected = useCanvasStore.getState().nodes.filter((n) => n.selected);
+    expect(selected).toHaveLength(1);
+    expect(selected[0].id).toBe(subnet.id);
+
+    // Dropped free (no parent): lands at the given point, top-level.
+    addResourceAt('aws_s3_bucket', { x: 400, y: 400 });
+    const bucket = useCanvasStore.getState().nodes.find((n) => n.data.type === 'aws_s3_bucket')!;
+    expect(bucket.parentId).toBeUndefined();
+    expect(bucket.position).toEqual({ x: 400, y: 400 });
+  });
+
+  it('reconnectEdge moves a connection to a new valid target, re-stamping and keeping id', () => {
+    const { addResource, onConnect, reconnectEdge } = useCanvasStore.getState();
+    addResource('aws_instance');
+    addResource('aws_security_group');
+    addResource('aws_security_group');
+    const inst = useCanvasStore.getState().nodes.find((n) => n.data.type === 'aws_instance')!;
+    const [sg1, sg2] = useCanvasStore.getState().nodes.filter((n) => n.data.type === 'aws_security_group');
+
+    onConnect({ source: inst.id, target: sg1.id, sourceHandle: null, targetHandle: null });
+    const edge = useCanvasStore.getState().edges[0];
+
+    reconnectEdge(edge, { source: inst.id, target: sg2.id, sourceHandle: null, targetHandle: null });
+    const after = useCanvasStore.getState().edges;
+    expect(after).toHaveLength(1);
+    expect(after[0].id).toBe(edge.id);
+    expect(after[0]).toMatchObject({
+      source: inst.id,
+      target: sg2.id,
+      data: { attribute: 'vpc_security_group_ids', cardinality: 'list', refAttr: 'id' },
+    });
+    // The derived ref follows the reconnected edge — no drift.
+    const instR = useCanvasStore.getState().toApiModel().resources!.find((r) => r.id === inst.id)!;
+    expect(instR.attributes!.vpc_security_group_ids).toEqual({
+      kind: 'list',
+      items: [{ kind: 'ref', target: sg2.id, attribute: 'id' }],
+    });
+  });
+
+  it('reconnectEdge refuses an unruled target and leaves the edge untouched', () => {
+    const { addResource, onConnect, reconnectEdge } = useCanvasStore.getState();
+    addResource('aws_instance');
+    addResource('aws_security_group');
+    addResource('aws_s3_bucket');
+    const inst = useCanvasStore.getState().nodes.find((n) => n.data.type === 'aws_instance')!;
+    const sg = useCanvasStore.getState().nodes.find((n) => n.data.type === 'aws_security_group')!;
+    const bucket = useCanvasStore.getState().nodes.find((n) => n.data.type === 'aws_s3_bucket')!;
+
+    onConnect({ source: inst.id, target: sg.id, sourceHandle: null, targetHandle: null });
+    const edge = useCanvasStore.getState().edges[0];
+
+    reconnectEdge(edge, { source: inst.id, target: bucket.id, sourceHandle: null, targetHandle: null });
+    const after = useCanvasStore.getState().edges;
+    expect(after).toHaveLength(1);
+    expect(after[0].target).toBe(sg.id); // unchanged
+    expect(useCanvasStore.getState().lastRejection?.key).toBe('connection.invalid.s3');
+  });
+
   it('startConnect records the source node type; endConnect clears it', () => {
     useCanvasStore.getState().addResource('aws_instance');
     const inst = useCanvasStore.getState().nodes[0];

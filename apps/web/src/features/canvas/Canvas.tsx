@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { useCallback, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   Background,
@@ -8,6 +8,7 @@ import {
   ReactFlow,
   ReactFlowProvider,
   useReactFlow,
+  type Edge,
   type EdgeTypes,
   type Node,
   type NodeTypes,
@@ -15,6 +16,7 @@ import {
   type OnConnectEnd,
   type OnConnectStart,
   type OnNodeDrag,
+  type OnReconnect,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { Button } from '@/shared/components/ui/button';
@@ -23,7 +25,8 @@ import { ResourceNode as ResourceNodeView } from './ResourceNode';
 import { ContainerNode } from './ContainerNode';
 import { RefEdge } from './RefEdge';
 import { ConnectionHint } from './ConnectionHint';
-import { nestRule } from './containment';
+import { canNest, nestRule } from './containment';
+import { RESOURCE_DND_MIME } from './dnd';
 
 const nodeTypes: NodeTypes = { resource: ResourceNodeView, container: ContainerNode };
 const edgeTypes: EdgeTypes = { ref: RefEdge };
@@ -52,8 +55,10 @@ function Flow({ dark }: { dark: boolean }) {
   const nestNode = useCanvasStore((s) => s.nestNode);
   const unnestNode = useCanvasStore((s) => s.unnestNode);
   const setDropTarget = useCanvasStore((s) => s.setDropTarget);
+  const addResourceAt = useCanvasStore((s) => s.addResourceAt);
+  const reconnectEdge = useCanvasStore((s) => s.reconnectEdge);
   const loadExample = useCanvasStore((s) => s.loadExample);
-  const { getIntersectingNodes, getInternalNode } = useReactFlow<ResourceNode>();
+  const { getIntersectingNodes, getInternalNode, screenToFlowPosition } = useReactFlow<ResourceNode>();
 
   // The container a dragged node would nest into, by geometry: the smallest
   // (innermost) intersecting node of the type this node's nest rule allows, or
@@ -158,6 +163,80 @@ function Flow({ dark }: { dark: boolean }) {
     [getInternalNode, unnestNode],
   );
 
+  // Dragging a resource from the palette and dropping it on the canvas. The drop
+  // point (in flow coords) decides placement: dropped inside a container it can
+  // nest into, it's added as that container's child at a container-relative
+  // position (nested at once); otherwise it lands free where it fell.
+  const onDragOver = useCallback((e: React.DragEvent) => {
+    if (e.dataTransfer.types.includes(RESOURCE_DND_MIME)) {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+    }
+  }, []);
+
+  const onDrop = useCallback(
+    (e: React.DragEvent) => {
+      const type = e.dataTransfer.getData(RESOURCE_DND_MIME);
+      if (!type) return;
+      e.preventDefault();
+      const point = screenToFlowPosition({ x: e.clientX, y: e.clientY });
+
+      // Innermost (smallest) container whose bounds contain the drop point and
+      // that this type can nest into — mirrors the drop-to-nest geometry used
+      // for node drags, but from a point (the new node isn't measured yet).
+      let host: { id: string; x: number; y: number } | null = null;
+      let hostArea = Infinity;
+      for (const n of nodes) {
+        if (n.type !== 'container' || !canNest(type, n.data.type)) continue;
+        const abs = getInternalNode(n.id)?.internals.positionAbsolute;
+        if (!abs) continue;
+        const w = n.measured?.width ?? n.width ?? 0;
+        const h = n.measured?.height ?? n.height ?? 0;
+        if (point.x < abs.x || point.x > abs.x + w || point.y < abs.y || point.y > abs.y + h) continue;
+        const a = w * h;
+        if (a < hostArea) {
+          host = { id: n.id, x: abs.x, y: abs.y };
+          hostArea = a;
+        }
+      }
+
+      // Offset so the cursor lands near the node's middle, not its corner.
+      if (host) {
+        addResourceAt(
+          type,
+          { x: Math.max(point.x - host.x - 90, 8), y: Math.max(point.y - host.y - 24, 30) },
+          host.id,
+        );
+      } else {
+        addResourceAt(type, { x: point.x - 90, y: point.y - 24 });
+      }
+    },
+    [screenToFlowPosition, nodes, getInternalNode, addResourceAt],
+  );
+
+  // Edge reconnection: drag a connection's endpoint to a new node and it
+  // re-validates (reconnectEdge). The ref tracks whether a valid drop landed —
+  // released on empty pane (no onReconnect), the edge is removed, so dragging an
+  // endpoint off is also the "delete this connection" gesture.
+  const reconnectLanded = useRef(true);
+  const onReconnectStart = useCallback(() => {
+    reconnectLanded.current = false;
+  }, []);
+  const onReconnect = useCallback<OnReconnect>(
+    (oldEdge, newConnection) => {
+      reconnectLanded.current = true;
+      reconnectEdge(oldEdge, newConnection);
+    },
+    [reconnectEdge],
+  );
+  const onReconnectEnd = useCallback(
+    (_: MouseEvent | TouchEvent, edge: Edge) => {
+      if (!reconnectLanded.current) onEdgesChange([{ type: 'remove', id: edge.id }]);
+      reconnectLanded.current = true;
+    },
+    [onEdgesChange],
+  );
+
   const colorMode = dark ? 'dark' : 'light';
   const mm = MINIMAP[colorMode];
 
@@ -173,9 +252,14 @@ function Flow({ dark }: { dark: boolean }) {
         onConnect={onConnect}
         onConnectStart={onConnectStart}
         onConnectEnd={onConnectEnd}
+        onReconnect={onReconnect}
+        onReconnectStart={onReconnectStart}
+        onReconnectEnd={onReconnectEnd}
         onNodeDrag={onNodeDrag}
         onNodeDragStop={onNodeDragStop}
         onBeforeDelete={onBeforeDelete}
+        onDrop={onDrop}
+        onDragOver={onDragOver}
         // Either handle can start a drag; the store orients the edge by rule
         // (connection.ts), never by which dot was grabbed, so loose is safe and
         // fixes the top (target) dot looking draggable but doing nothing.

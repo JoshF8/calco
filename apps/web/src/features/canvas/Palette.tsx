@@ -1,5 +1,6 @@
 import { useTranslation } from 'react-i18next';
 import { Plus } from 'lucide-react';
+import { RESOURCE_DND_MIME } from './dnd';
 import { catalog, groupOrder } from './catalog';
 import { ResourceIcon } from './icons';
 import { useCanvasStore } from './store';
@@ -26,8 +27,13 @@ export function Palette() {
               {entries.map((entry) => (
                 <button
                   key={entry.type}
+                  draggable
+                  onDragStart={(e) => {
+                    e.dataTransfer.setData(RESOURCE_DND_MIME, entry.type);
+                    e.dataTransfer.effectAllowed = 'move';
+                  }}
                   onClick={() => addResource(entry.type)}
-                  className="group flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-left text-sm hover:bg-secondary"
+                  className="group flex w-full cursor-grab items-center gap-2.5 rounded-md px-2 py-1.5 text-left text-sm hover:bg-secondary active:cursor-grabbing"
                   title={entry.type}
                 >
                   <span className="relative h-7 w-7 shrink-0">

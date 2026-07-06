@@ -19,7 +19,7 @@
   },
   "palette": {
     "title": "Recursos",
-    "hint": "Clic para agregar al canvas",
+    "hint": "Arrastrá al canvas, o clic para agregar",
     "group": {
       "network": "Red",
       "compute": "Cómputo",
