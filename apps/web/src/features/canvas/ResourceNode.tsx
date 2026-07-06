@@ -36,10 +36,12 @@ export function ResourceNode({ id, data, selected }: NodeProps) {
   const connecting = connectSource !== null && connectSource.id !== id;
   const validTarget = connecting && Boolean(connectionRule(connectSource.type, d.type));
 
-  // A generous transparent hit area carries a small visible dot, so the target
-  // is easy to grab without the dot looking clickably huge.
+  // A generous transparent hit area (28px) carries a small visible dot, so the
+  // handle is forgiving to grab and to drop onto without the dot looking
+  // clickably huge. Paired with a wide connectionRadius (Canvas) so a release
+  // merely *near* a node still snaps — connecting shouldn't need pixel aim.
   const handleHit =
-    '!h-4 !w-4 !min-h-0 !min-w-0 !border-0 !bg-transparent !cursor-crosshair flex items-center justify-center';
+    '!h-7 !w-7 !min-h-0 !min-w-0 !border-0 !bg-transparent !cursor-crosshair flex items-center justify-center';
   const dotBase = 'h-2.5 w-2.5 rounded-full border-2 border-card transition-colors';
   const dotIdle = 'bg-muted-foreground/60 group-hover:bg-muted-foreground';
   const dotRegistered = 'bg-accent';

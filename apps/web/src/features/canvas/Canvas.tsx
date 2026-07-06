@@ -264,6 +264,13 @@ function Flow({ dark }: { dark: boolean }) {
         // (connection.ts), never by which dot was grabbed, so loose is safe and
         // fixes the top (target) dot looking draggable but doing nothing.
         connectionMode={ConnectionMode.Loose}
+        // Snap to a handle from well away (default is 20px) so a release near a
+        // node connects instead of missing — the biggest "fiddly" fix. Still
+        // never gates: a drop beyond any handle falls to onConnectEnd's hint.
+        connectionRadius={48}
+        // A slightly heavier in-flight line reads more clearly than the 1px
+        // default while you aim the drag.
+        connectionLineStyle={{ strokeWidth: 2 }}
         colorMode={colorMode}
         fitView
         // Start a touch zoomed out: a few small nodes would otherwise fill the
