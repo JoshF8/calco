@@ -35,7 +35,7 @@ export type Rejection = ConnectionReason & { at: number };
 interface RefEdgeData extends Record<string, unknown> {
   attribute: string;
   cardinality: 'scalar' | 'list';
-  refAttr: 'id' | 'arn';
+  refAttr: 'id' | 'arn' | 'name';
 }
 
 /** The node a connection drag is currently starting from, or null. Held so

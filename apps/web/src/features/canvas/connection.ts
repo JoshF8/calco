@@ -28,8 +28,9 @@ export interface ConnectionRule {
   attribute: string;
   /** scalar = one ref; list = a tuple of refs ([a.id, b.id]). */
   cardinality: 'scalar' | 'list';
-  /** The referenced attribute (id or arn). */
-  refAttr: 'id' | 'arn';
+  /** The referenced attribute (id, arn, or name — e.g. an IAM role is
+   * referenced by name, a KMS key or IAM role by arn, most things by id). */
+  refAttr: 'id' | 'arn' | 'name';
 }
 
 // AWS-accurate rules for the current 9-type catalog + flat-attribute model.
