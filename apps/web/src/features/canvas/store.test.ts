@@ -135,6 +135,20 @@ describe('canvas store', () => {
     expect(after.attributes!.vpc_id).toBeUndefined();
   });
 
+  it('stacks containers behind leaves with a fixed z-order (vpc < subnet < resource)', () => {
+    const { addResource } = useCanvasStore.getState();
+    addResource('aws_vpc');
+    addResource('aws_subnet');
+    addResource('aws_instance');
+    const z = Object.fromEntries(
+      useCanvasStore.getState().nodes.map((n) => [n.data.type, n.zIndex]),
+    );
+    // Fixed order: vpc (0) behind subnet (1) behind leaf resources (10).
+    expect(z.aws_vpc).toBe(0);
+    expect(z.aws_subnet).toBe(1);
+    expect(z.aws_instance).toBe(10);
+  });
+
   it('toApiModel projects nodes into the wire shape', () => {
     useCanvasStore.getState().addResource('aws_vpc');
     const model = useCanvasStore.getState().toApiModel();
@@ -144,5 +158,206 @@ describe('canvas store', () => {
     expect(model.resources![0].attributes).toEqual({});
     expect(model.variables).toEqual([]);
     expect(model.outputs).toEqual([]);
+  });
+
+  it('onConnect encodes the real AWS argument via the typed rule', () => {
+    const { addResource } = useCanvasStore.getState();
+    addResource('aws_instance');
+    addResource('aws_security_group');
+    const inst = useCanvasStore.getState().nodes.find((n) => n.data.type === 'aws_instance')!;
+    const sg = useCanvasStore.getState().nodes.find((n) => n.data.type === 'aws_security_group')!;
+
+    useCanvasStore.getState().onConnect({ source: inst.id, target: sg.id, sourceHandle: null, targetHandle: null });
+
+    const edges = useCanvasStore.getState().edges;
+    expect(edges).toHaveLength(1);
+    // The instance is the dependent; the argument is the real, list-cardinality one.
+    expect(edges[0]).toMatchObject({
+      source: inst.id,
+      target: sg.id,
+      type: 'ref',
+      data: { attribute: 'vpc_security_group_ids', cardinality: 'list', refAttr: 'id' },
+    });
+
+    // The edge is the single source of truth; the ref is derived as a list on
+    // the dependent, matching what terraform validate expects.
+    const instR = useCanvasStore.getState().toApiModel().resources!.find((r) => r.id === inst.id)!;
+    expect(instR.attributes!.vpc_security_group_ids).toEqual({
+      kind: 'list',
+      items: [{ kind: 'ref', target: sg.id, attribute: 'id' }],
+    });
+    // No invented scalar security_group_id, on either resource.
+    expect(instR.attributes!.security_group_id).toBeUndefined();
+
+    // Removing the edge removes the derived ref — no drift.
+    useCanvasStore.getState().onEdgesChange([{ type: 'remove', id: edges[0].id }]);
+    const after = useCanvasStore.getState().toApiModel().resources!.find((r) => r.id === inst.id)!;
+    expect(after.attributes!.vpc_security_group_ids).toBeUndefined();
+  });
+
+  it('onConnect orients by the rule regardless of drag direction', () => {
+    const { addResource } = useCanvasStore.getState();
+    addResource('aws_instance');
+    addResource('aws_security_group');
+    const inst = useCanvasStore.getState().nodes.find((n) => n.data.type === 'aws_instance')!;
+    const sg = useCanvasStore.getState().nodes.find((n) => n.data.type === 'aws_security_group')!;
+
+    // Dragged sg -> instance, but the rule makes the instance the dependent.
+    useCanvasStore.getState().onConnect({ source: sg.id, target: inst.id, sourceHandle: null, targetHandle: null });
+
+    const edge = useCanvasStore.getState().edges[0];
+    expect(edge).toMatchObject({ source: inst.id, target: sg.id, data: { attribute: 'vpc_security_group_ids' } });
+  });
+
+  it('collapses two security groups into one list argument', () => {
+    const { addResource } = useCanvasStore.getState();
+    addResource('aws_instance');
+    addResource('aws_security_group');
+    addResource('aws_security_group');
+    const inst = useCanvasStore.getState().nodes.find((n) => n.data.type === 'aws_instance')!;
+    const [sg1, sg2] = useCanvasStore.getState().nodes.filter((n) => n.data.type === 'aws_security_group');
+    const connect = (source: string, target: string) =>
+      useCanvasStore.getState().onConnect({ source, target, sourceHandle: null, targetHandle: null });
+
+    connect(inst.id, sg1.id);
+    connect(inst.id, sg2.id);
+
+    expect(useCanvasStore.getState().edges).toHaveLength(2);
+    const instR = useCanvasStore.getState().toApiModel().resources!.find((r) => r.id === inst.id)!;
+    expect(instR.attributes!.vpc_security_group_ids).toEqual({
+      kind: 'list',
+      items: [
+        { kind: 'ref', target: sg1.id, attribute: 'id' },
+        { kind: 'ref', target: sg2.id, attribute: 'id' },
+      ],
+    });
+  });
+
+  it('encodes a scalar ref with the referenced attribute (lambda role -> arn)', () => {
+    const { addResource } = useCanvasStore.getState();
+    addResource('aws_lambda_function');
+    addResource('aws_iam_role');
+    const fn = useCanvasStore.getState().nodes.find((n) => n.data.type === 'aws_lambda_function')!;
+    const role = useCanvasStore.getState().nodes.find((n) => n.data.type === 'aws_iam_role')!;
+
+    useCanvasStore.getState().onConnect({ source: fn.id, target: role.id, sourceHandle: null, targetHandle: null });
+
+    const fnR = useCanvasStore.getState().toApiModel().resources!.find((r) => r.id === fn.id)!;
+    expect(fnR.attributes!.role).toEqual({ kind: 'ref', target: role.id, attribute: 'arn' });
+  });
+
+  it('refuses unruled pairs and records a reason instead of an edge', () => {
+    const { addResource } = useCanvasStore.getState();
+    addResource('aws_instance');
+    addResource('aws_instance');
+    const [i1, i2] = useCanvasStore.getState().nodes;
+
+    useCanvasStore.getState().onConnect({ source: i1.id, target: i2.id, sourceHandle: null, targetHandle: null });
+
+    expect(useCanvasStore.getState().edges).toHaveLength(0);
+    expect(useCanvasStore.getState().lastRejection?.key).toBe('connection.invalid.sameType');
+  });
+
+  it('refuses a containment pair and points to the nest gesture', () => {
+    const { addResource } = useCanvasStore.getState();
+    addResource('aws_subnet');
+    addResource('aws_vpc');
+    const subnet = useCanvasStore.getState().nodes.find((n) => n.data.type === 'aws_subnet')!;
+    const vpc = useCanvasStore.getState().nodes.find((n) => n.data.type === 'aws_vpc')!;
+
+    useCanvasStore.getState().onConnect({ source: subnet.id, target: vpc.id, sourceHandle: null, targetHandle: null });
+
+    expect(useCanvasStore.getState().edges).toHaveLength(0);
+    expect(useCanvasStore.getState().lastRejection?.key).toBe('connection.invalid.useContainment');
+  });
+
+  it('nesting RDS is visual-only: no invented subnet_id argument', () => {
+    const { addResource } = useCanvasStore.getState();
+    addResource('aws_subnet');
+    addResource('aws_db_instance');
+    const subnet = useCanvasStore.getState().nodes.find((n) => n.data.type === 'aws_subnet')!;
+    const rds = useCanvasStore.getState().nodes.find((n) => n.data.type === 'aws_db_instance')!;
+
+    useCanvasStore.getState().nestNode(rds.id, subnet.id, { x: 10, y: 30 });
+
+    const rdsR = useCanvasStore.getState().toApiModel().resources!.find((r) => r.id === rds.id)!;
+    expect(rdsR.attributes!.subnet_id).toBeUndefined();
+    expect(rdsR.attributes).toEqual({});
+  });
+
+  it('onConnect ignores self-links and duplicate pairs', () => {
+    const { addResource } = useCanvasStore.getState();
+    addResource('aws_instance');
+    addResource('aws_security_group');
+    const inst = useCanvasStore.getState().nodes.find((n) => n.data.type === 'aws_instance')!;
+    const sg = useCanvasStore.getState().nodes.find((n) => n.data.type === 'aws_security_group')!;
+    const connect = (source: string, target: string) =>
+      useCanvasStore.getState().onConnect({ source, target, sourceHandle: null, targetHandle: null });
+
+    connect(inst.id, inst.id); // self-link
+    expect(useCanvasStore.getState().edges).toHaveLength(0);
+
+    connect(inst.id, sg.id);
+    connect(inst.id, sg.id); // duplicate pair
+    expect(useCanvasStore.getState().edges).toHaveLength(1);
+  });
+
+  it('explains a duplicate connection instead of silently swallowing it', () => {
+    const { addResource } = useCanvasStore.getState();
+    addResource('aws_instance');
+    addResource('aws_security_group');
+    const inst = useCanvasStore.getState().nodes.find((n) => n.data.type === 'aws_instance')!;
+    const sg = useCanvasStore.getState().nodes.find((n) => n.data.type === 'aws_security_group')!;
+    const connect = (source: string, target: string) =>
+      useCanvasStore.getState().onConnect({ source, target, sourceHandle: null, targetHandle: null });
+
+    connect(inst.id, sg.id);
+    connect(inst.id, sg.id); // duplicate
+    expect(useCanvasStore.getState().lastRejection?.key).toBe('connection.invalid.duplicate');
+  });
+
+  it('explains a self connection instead of doing nothing', () => {
+    useCanvasStore.getState().addResource('aws_instance');
+    const inst = useCanvasStore.getState().nodes[0];
+
+    useCanvasStore.getState().onConnect({ source: inst.id, target: inst.id, sourceHandle: null, targetHandle: null });
+
+    expect(useCanvasStore.getState().edges).toHaveLength(0);
+    expect(useCanvasStore.getState().lastRejection?.key).toBe('connection.invalid.self');
+  });
+
+  it('showConnectionHint surfaces an arbitrary key through the rejection channel', () => {
+    useCanvasStore.getState().showConnectionHint('connection.hint.dropOnDot');
+    expect(useCanvasStore.getState().lastRejection?.key).toBe('connection.hint.dropOnDot');
+  });
+
+  it('startConnect records the source node type; endConnect clears it', () => {
+    useCanvasStore.getState().addResource('aws_instance');
+    const inst = useCanvasStore.getState().nodes[0];
+
+    useCanvasStore.getState().startConnect(inst.id);
+    expect(useCanvasStore.getState().connectSource).toEqual({ id: inst.id, type: 'aws_instance' });
+
+    useCanvasStore.getState().endConnect();
+    expect(useCanvasStore.getState().connectSource).toBeNull();
+
+    // A drag with no origin node (null) records nothing.
+    useCanvasStore.getState().startConnect(null);
+    expect(useCanvasStore.getState().connectSource).toBeNull();
+  });
+
+  it('loadExample seeds the canonical graph with list SG references', () => {
+    useCanvasStore.getState().loadExample();
+    const model = useCanvasStore.getState().toApiModel();
+    const instances = model.resources!.filter((r) => r.type === 'aws_instance');
+    expect(instances).toHaveLength(2);
+    for (const inst of instances) {
+      const sgs = inst.attributes!.vpc_security_group_ids;
+      expect(sgs?.kind).toBe('list');
+      expect(sgs?.items).toHaveLength(1);
+    }
+    // The SG is scoped to the VPC by nesting (real vpc_id), not by a connection.
+    const sg = model.resources!.find((r) => r.type === 'aws_security_group')!;
+    expect(sg.attributes!.vpc_id?.kind).toBe('ref');
   });
 });

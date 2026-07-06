@@ -8,6 +8,8 @@ import { create } from 'zustand';
 import {
   applyEdgeChanges,
   applyNodeChanges,
+  MarkerType,
+  type Connection,
   type Edge,
   type EdgeChange,
   type Node,
@@ -16,6 +18,7 @@ import {
 import type { components } from '@/lib/types.gen';
 import { shortType } from './catalog';
 import { containerSize, isContainer, nestRule } from './containment';
+import { connectionReasonKey, connectionRule, type ConnectionReason } from './connection';
 import type { ResourceNodeData } from './ResourceNode';
 
 export type ApiModel = components['schemas']['Model'];
@@ -24,9 +27,32 @@ export type ApiAttrValue = components['schemas']['AttrValue'];
 // ('container', e.g. VPC/subnet); both carry ResourceNodeData.
 export type ResourceNode = Node<ResourceNodeData>;
 
+/** A refused connection, surfaced transiently for the ConnectionHint. `at` is a
+ * changing nonce so repeating the same refusal re-shows (and re-times) it. */
+export type Rejection = ConnectionReason & { at: number };
+
+/** The reference data a ruled connection carries on its edge. */
+interface RefEdgeData extends Record<string, unknown> {
+  attribute: string;
+  cardinality: 'scalar' | 'list';
+  refAttr: 'id' | 'arn';
+}
+
+/** The node a connection drag is currently starting from, or null. Held so
+ * every node can light up as a valid target (or dim as an invalid one) while
+ * the drag is in flight — a purely visual affordance, never a gate. */
+export interface ConnectSource {
+  id: string;
+  type: string;
+}
+
 interface CanvasState {
   nodes: ResourceNode[];
   edges: Edge[];
+  /** The most recent refused connection, or null. */
+  lastRejection: Rejection | null;
+  /** The node a connection drag started from, while it is in flight. */
+  connectSource: ConnectSource | null;
 }
 
 interface CanvasActions {
@@ -38,6 +64,25 @@ interface CanvasActions {
   onNodesChange: (changes: NodeChange<ResourceNode>[]) => void;
   /** onEdgesChange applies React Flow edge change events to the store. */
   onEdgesChange: (changes: EdgeChange<Edge>[]) => void;
+  /** onConnect links two nodes when the user drags between their handles. The
+   * pair is looked up in the typed connection rules (connection.ts): with no
+   * rule the drag is refused and explained (lastRejection); with a rule the
+   * edge is oriented by the rule (dependent -> dependency), never by drag
+   * order, and stamped with the real argument/cardinality/refAttr. The edge is
+   * the stored source of truth; the Terraform reference it implies is derived
+   * in toApiModel, so it can never drift from the drawn connection. */
+  onConnect: (connection: Connection) => void;
+  /** clearRejection dismisses the transient connection-refusal hint. */
+  clearRejection: () => void;
+  /** showConnectionHint surfaces a plain i18n-key hint through the same
+   * ConnectionHint channel a refusal uses — for feedback the drag itself can't
+   * carry (e.g. released on empty pane, so onConnect never fired). */
+  showConnectionHint: (key: string) => void;
+  /** startConnect records the node a connection drag began from (by id), so
+   * valid targets can be highlighted while the drag is in flight. Visual only. */
+  startConnect: (nodeId: string | null) => void;
+  /** endConnect clears the in-flight connection source. */
+  endConnect: () => void;
   /** setNodeName renames a resource (its Terraform name slug). */
   setNodeName: (id: string, name: string) => void;
   /** setAttribute sets or replaces an attribute on a resource. */
@@ -54,6 +99,10 @@ interface CanvasActions {
   unnestNode: (id: string, position: { x: number; y: number }) => void;
   /** clear empties the canvas. */
   clear: () => void;
+  /** loadExample seeds the canonical VPC + 2 subnets + 2 instances + SG graph
+   * (the corrected version of the fidelity-feedback example), for the empty
+   * state and as a living regression fixture. */
+  loadExample: () => void;
   /** toApiModel projects the canvas into the generate endpoint's wire shape. */
   toApiModel: () => ApiModel;
 }
@@ -70,8 +119,19 @@ function uniqueName(nodes: ResourceNode[], type: string): string {
   return `${base}_${n}`;
 }
 
+// Fixed stacking order: containers sit behind leaf resources, and among
+// containers a VPC sits behind a subnet — so a container is always a backdrop
+// for what it holds and never covers or steals clicks from its children. Ranks
+// are fixed by type (not live geometry or selection); the canvas also runs with
+// elevateNodesOnSelect disabled so selecting a container can't lift it forward.
+const containerZ: Record<string, number> = { aws_vpc: 0, aws_subnet: 1 };
+function nodeZ(type: string): number {
+  return isContainer(type) ? (containerZ[type] ?? 1) : 10;
+}
+
 // React Flow requires a parent node to appear before its children in the array.
-// Sort by nesting depth (stable, so same-depth order is preserved).
+// Sort by nesting depth (stable, so same-depth order is preserved), then stamp
+// the fixed z so leaves always render above the containers holding them.
 function parentsFirst(nodes: ResourceNode[]): ResourceNode[] {
   const byId = new Map(nodes.map((n) => [n.id, n]));
   const depth = (n: ResourceNode): number => {
@@ -83,16 +143,86 @@ function parentsFirst(nodes: ResourceNode[]): ResourceNode[] {
     }
     return d;
   };
-  return [...nodes].sort((a, b) => depth(a) - depth(b));
+  return [...nodes]
+    .sort((a, b) => depth(a) - depth(b))
+    .map((n) => {
+      const z = nodeZ(n.data.type);
+      return n.zIndex === z ? n : { ...n, zIndex: z };
+    });
 }
 
-function ref(targetId: string): ApiAttrValue {
-  return { kind: 'ref', target: targetId, attribute: 'id' };
+function ref(targetId: string, refAttr: string = 'id'): ApiAttrValue {
+  return { kind: 'ref', target: targetId, attribute: refAttr };
+}
+
+/** A reference derived from a single source of truth (a connection edge or the
+ * node's containment), used both to project toApiModel and to show the
+ * Inspector's Referencias section — one projection, so they can never disagree. */
+export interface DerivedRef {
+  /** The real Terraform argument this reference is written to. */
+  attribute: string;
+  /** The projected value: a scalar ref, or a list of refs. */
+  value: ApiAttrValue;
+  /** Where the reference comes from (drives provenance + how it is removed). */
+  origin: 'connection' | 'nesting';
+  /** The referenced target node ids, in order. */
+  targetIds: string[];
+  /** For connection refs, the edge id backing each target (parallel to
+   * targetIds), so a single reference can be removed by deleting its edge. */
+  edgeIds?: string[];
+}
+
+/** deriveRefs computes every reference a node projects, from the edges it is the
+ * dependent of and from its containment. List-cardinality connections collapse
+ * to one list argument (e.g. two SGs -> vpc_security_group_ids = [a.id, b.id]). */
+export function deriveRefs(node: ResourceNode, edges: Edge[]): DerivedRef[] {
+  const out: DerivedRef[] = [];
+
+  // Containment: the node's scoping ref (vpc_id / subnet_id), when nested and
+  // the nest rule carries an attribute (RDS/LB nest for grouping only).
+  if (node.parentId) {
+    const rule = nestRule(node.data.type);
+    if (rule?.attribute) {
+      out.push({
+        attribute: rule.attribute,
+        value: ref(node.parentId),
+        origin: 'nesting',
+        targetIds: [node.parentId],
+      });
+    }
+  }
+
+  // Connections: this node is the dependent (edge.source). Group by argument so
+  // list-cardinality edges collapse into one tuple value.
+  const byAttr = new Map<string, Edge[]>();
+  for (const e of edges) {
+    if (e.source !== node.id) continue;
+    const d = e.data as Partial<RefEdgeData> | undefined;
+    if (typeof d?.attribute !== 'string' || !d.attribute) continue;
+    const group = byAttr.get(d.attribute);
+    if (group) group.push(e);
+    else byAttr.set(d.attribute, [e]);
+  }
+  for (const [attribute, group] of byAttr) {
+    const d = group[0].data as RefEdgeData;
+    const refAttr = d.refAttr ?? 'id';
+    const targetIds = group.map((e) => e.target);
+    const edgeIds = group.map((e) => e.id);
+    const value: ApiAttrValue =
+      d.cardinality === 'list'
+        ? { kind: 'list', items: targetIds.map((t) => ref(t, refAttr)) }
+        : ref(targetIds[0], refAttr);
+    out.push({ attribute, value, origin: 'connection', targetIds, edgeIds });
+  }
+
+  return out;
 }
 
 export const useCanvasStore = create<CanvasState & CanvasActions>((set, get) => ({
   nodes: [],
   edges: [],
+  lastRejection: null,
+  connectSource: null,
 
   addResource: (type) =>
     set((s) => {
@@ -118,6 +248,61 @@ export const useCanvasStore = create<CanvasState & CanvasActions>((set, get) => 
 
   onNodesChange: (changes) => set((s) => ({ nodes: applyNodeChanges(changes, s.nodes) })),
   onEdgesChange: (changes) => set((s) => ({ edges: applyEdgeChanges(changes, s.edges) })),
+
+  onConnect: ({ source, target }) =>
+    set((s) => {
+      if (!source || !target) return {};
+      // A resource dragged onto its own other handle (possible in loose mode):
+      // say so, rather than doing nothing.
+      if (source === target) return { lastRejection: { key: 'connection.invalid.self', at: Date.now() } };
+      const src = s.nodes.find((n) => n.id === source);
+      const tgt = s.nodes.find((n) => n.id === target);
+      if (!src || !tgt) return {};
+
+      // The typed rule fixes everything: whether the pair is a valid reference,
+      // which resource is the dependent, the real argument, its cardinality and
+      // the referenced attribute — none of it decided by which handle was
+      // dragged. Unruled pairs are refused with a reason, never invented.
+      const rule = connectionRule(src.data.type, tgt.data.type);
+      if (!rule) {
+        return { lastRejection: { ...connectionReasonKey(src.data.type, tgt.data.type), at: Date.now() } };
+      }
+      // Orient by the rule: dependent holds the argument, dependency is referenced.
+      const dependent = src.data.type === rule.from ? source : target;
+      const dependency = dependent === source ? target : source;
+      // One edge per ordered dependent -> dependency pair. A repeated list edge
+      // (a second SG) is a *different* pair and is allowed; a true duplicate is
+      // a gentle no-op, said out loud rather than swallowed silently.
+      if (s.edges.some((e) => e.source === dependent && e.target === dependency)) {
+        return { lastRejection: { key: 'connection.invalid.duplicate', at: Date.now() } };
+      }
+      const data: RefEdgeData = {
+        attribute: rule.attribute,
+        cardinality: rule.cardinality,
+        refAttr: rule.refAttr,
+      };
+      const edge: Edge = {
+        id: crypto.randomUUID(),
+        source: dependent,
+        target: dependency,
+        type: 'ref',
+        data,
+        markerEnd: { type: MarkerType.ArrowClosed, color: 'var(--xy-edge-stroke)' },
+      };
+      return { edges: [...s.edges, edge], lastRejection: null };
+    }),
+
+  clearRejection: () => set({ lastRejection: null }),
+
+  showConnectionHint: (key) => set({ lastRejection: { key, at: Date.now() } }),
+
+  startConnect: (nodeId) =>
+    set((s) => {
+      const node = nodeId ? s.nodes.find((n) => n.id === nodeId) : undefined;
+      return { connectSource: node ? { id: node.id, type: node.data.type } : null };
+    }),
+
+  endConnect: () => set({ connectSource: null }),
 
   setNodeName: (id, name) =>
     set((s) => ({
@@ -153,17 +338,60 @@ export const useCanvasStore = create<CanvasState & CanvasActions>((set, get) => 
       return { nodes: parentsFirst(nodes) };
     }),
 
-  clear: () => set({ nodes: [], edges: [] }),
+  clear: () => set({ nodes: [], edges: [], lastRejection: null }),
+
+  loadExample: () =>
+    set(() => {
+      const mk = (
+        type: string,
+        name: string,
+        position: { x: number; y: number },
+        size?: { width: number; height: number },
+        parentId?: string,
+      ): ResourceNode => ({
+        id: crypto.randomUUID(),
+        type: isContainer(type) ? 'container' : 'resource',
+        position,
+        ...(size ?? {}),
+        ...(parentId ? { parentId } : {}),
+        data: { type, name, attributes: {} },
+      });
+
+      const vpc = mk('aws_vpc', 'vpc_1', { x: 80, y: 60 }, { width: 560, height: 340 });
+      const sub1 = mk('aws_subnet', 'subnet_1', { x: 16, y: 52 }, { width: 250, height: 190 }, vpc.id);
+      const sub2 = mk('aws_subnet', 'subnet_2', { x: 288, y: 52 }, { width: 250, height: 190 }, vpc.id);
+      const sg = mk('aws_security_group', 'security_group_1', { x: 20, y: 262 }, undefined, vpc.id);
+      const i1 = mk('aws_instance', 'instance_1', { x: 18, y: 64 }, undefined, sub1.id);
+      const i2 = mk('aws_instance', 'instance_2', { x: 18, y: 64 }, undefined, sub2.id);
+
+      // Both instances reference the SG via the real list argument.
+      const rule = connectionRule('aws_instance', 'aws_security_group')!;
+      const link = (instanceId: string): Edge => ({
+        id: crypto.randomUUID(),
+        source: instanceId,
+        target: sg.id,
+        type: 'ref',
+        data: { attribute: rule.attribute, cardinality: rule.cardinality, refAttr: rule.refAttr } as RefEdgeData,
+        markerEnd: { type: MarkerType.ArrowClosed, color: 'var(--xy-edge-stroke)' },
+      });
+
+      return {
+        nodes: parentsFirst([vpc, sub1, sub2, sg, i1, i2]),
+        edges: [link(i1.id), link(i2.id)],
+        lastRejection: null,
+      };
+    }),
 
   toApiModel: () => {
     const s = get();
     return {
       resources: s.nodes.map((n) => {
-        // Derive the containment reference from parentId — the single source of
-        // truth — so it can never be edited away or drift from the visual.
+        // Derive references from the single sources of truth — connections
+        // (edges) and containment (parentId) — via the same deriveRefs used by
+        // the Inspector, so a ref can never be edited away or drift from what
+        // the canvas shows, and the two panels can never disagree.
         const attributes = { ...n.data.attributes };
-        const rule = n.parentId ? nestRule(n.data.type) : undefined;
-        if (rule && n.parentId) attributes[rule.attribute] = ref(n.parentId);
+        for (const dr of deriveRefs(n, s.edges)) attributes[dr.attribute] = dr.value;
         return {
           id: n.id,
           type: n.data.type,

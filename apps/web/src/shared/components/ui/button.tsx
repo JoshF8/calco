@@ -10,14 +10,19 @@ const buttonVariants = cva(
       variant: {
         default:
           'bg-primary text-primary-foreground shadow-sm hover:bg-primary/90',
+        // The single oxblood call-to-action: registration / confirmation only.
+        accent:
+          'bg-accent text-accent-foreground shadow-sm hover:bg-accent/90',
         destructive:
           'bg-destructive text-destructive-foreground shadow-sm hover:bg-destructive/90',
+        // Incidental controls must not flash oxblood on hover — that spends the
+        // registration colour on nothing. They settle onto the neutral surface.
         outline:
-          'border border-input bg-background shadow-sm hover:bg-accent hover:text-accent-foreground',
+          'border border-input bg-background shadow-sm hover:bg-secondary hover:text-foreground',
         secondary:
           'bg-secondary text-secondary-foreground shadow-sm hover:bg-secondary/80',
         ghost:
-          'hover:bg-accent hover:text-accent-foreground',
+          'hover:bg-secondary hover:text-foreground',
         link: 'text-primary underline-offset-4 hover:underline',
       },
       size: {

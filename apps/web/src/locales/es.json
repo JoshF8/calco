@@ -39,6 +39,24 @@
       "aws_iam_role": "Rol IAM"
     }
   },
+  "connection": {
+    "invalid": {
+      "sameType": "Dos {{type}} no se referencian entre sí. Conectá recursos de tipos distintos.",
+      "s3": "Un bucket S3 no toma este tipo de referencia. Su acceso se modela con políticas y roles IAM.",
+      "instanceRole": "Una instancia EC2 no referencia un rol IAM directamente: se hace con un aws_iam_instance_profile, que calco todavía no incluye.",
+      "lambdaVpc": "Una función Lambda entra a una VPC con un bloque vpc_config (subredes y security groups juntos), no con una conexión suelta. calco todavía no lo modela.",
+      "lbInstance": "Un balanceador no apunta a una instancia directamente: los targets van en un aws_lb_target_group, que calco todavía no incluye.",
+      "sgSource": "Un security group no referencia a ese recurso. Son las instancias, RDS o balanceadores los que lo referencian a él.",
+      "useContainment": "Para que {{child}} quede dentro de {{container}}, arrastralo adentro de la caja; esa anidación genera la referencia.",
+      "duplicate": "Estos dos recursos ya están conectados.",
+      "self": "Un recurso no se referencia a sí mismo.",
+      "noRule": "No hay una referencia válida de Terraform entre estos dos recursos."
+    },
+    "hint": {
+      "dismiss": "Cerrar",
+      "dropOnDot": "Soltá sobre el punto de otro recurso para conectarlos."
+    }
+  },
   "inspector": {
     "tabsLabel": "Panel derecho",
     "tabInspector": "Inspector",
@@ -51,6 +69,12 @@
     "nameTaken": "Nombre ya usado para este tipo.",
     "containedIn": "Contenido en",
     "containedHint": "Definido al anidar en el canvas; arrastrá afuera para sacarlo.",
+    "references": "Referencias",
+    "noReferences": "Sin referencias todavía.",
+    "refFromConnection": "de la conexión con {{target}}",
+    "refFromNesting": "de la anidación en {{target}}",
+    "removeRef": "Quitar referencia",
+    "nestingVisualOnly": "Este anidado solo agrupa en el canvas. {{resource}} abarca varias subredes, así que todavía no generamos un argumento de subred.",
     "attributes": "Atributos",
     "noAttributes": "Sin atributos todavía.",
     "key": "clave",
@@ -61,6 +85,22 @@
     "reference": "referencia",
     "unknownRef": "(desconocido)"
   },
+  "canvas": {
+    "empty": {
+      "title": "El canvas está vacío",
+      "hint": "Agregá un VPC para empezar, o cargá un ejemplo.",
+      "loadExample": "Cargar ejemplo"
+    },
+    "coach": {
+      "connect": "Arrastrá desde el punto de un recurso hasta otro para conectarlos."
+    },
+    "handle": {
+      "connect": "Arrastrá para conectar"
+    },
+    "container": {
+      "nestHint": "Arrastrá recursos acá adentro para anidarlos."
+    }
+  },
   "export": {
     "title": "Terraform",
     "button": "Generar",
@@ -69,6 +109,9 @@
     "emptyCanvas": "Agregá recursos desde la izquierda y generá.",
     "prompt": "Clic en Generar para renderizar Terraform desde el canvas.",
     "download": "Descargar .tf",
+    "copy": "Copiar",
+    "copied": "Copiado",
+    "schemaDisclaimer": "HCL válido sintácticamente; no verificado contra el schema del provider.",
     "errorPrefix": "Error",
     "filesLabel": "Archivos generados"
   },

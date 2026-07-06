@@ -3,7 +3,8 @@ import { useTranslation } from 'react-i18next';
 import { Plus, Trash2 } from 'lucide-react';
 import type { components } from '@/lib/types.gen';
 import { Button } from '@/shared/components/ui/button';
-import { useCanvasStore, type ResourceNode } from '@/features/canvas/store';
+import { useCanvasStore, deriveRefs, type ResourceNode } from '@/features/canvas/store';
+import { nestRule } from '@/features/canvas/containment';
 import { isValidName, isValidNumber } from '@/features/canvas/validation';
 
 type ApiAttrValue = components['schemas']['AttrValue'];
@@ -45,6 +46,16 @@ function ResourceForm({ node, nodes }: { node: ResourceNode; nodes: ResourceNode
   const setNodeName = useCanvasStore((s) => s.setNodeName);
   const setAttribute = useCanvasStore((s) => s.setAttribute);
   const removeAttribute = useCanvasStore((s) => s.removeAttribute);
+  const edges = useCanvasStore((s) => s.edges);
+  const onEdgesChange = useCanvasStore((s) => s.onEdgesChange);
+
+  // References are derived from the same projection the generator uses, so this
+  // panel and the HCL can never disagree. They are read-only here: a reference
+  // exists only while its gesture (a connection edge, or nesting) does.
+  const refs = deriveRefs(node, edges);
+  // A nestable resource whose nesting produces no argument (RDS/LB span many
+  // subnets) — nested for visual grouping only. Tell the truth about it.
+  const nestVisualOnly = Boolean(node.parentId) && nestRule(node.data.type)?.attribute === undefined && nestRule(node.data.type) !== undefined;
 
   const takenNames = nodes
     .filter((n) => n.id !== node.id && n.data.type === node.data.type)
@@ -105,12 +116,54 @@ function ResourceForm({ node, nodes }: { node: ResourceNode; nodes: ResourceNode
       {node.parentId && (
         <div className="border-b px-4 py-3">
           <div className="text-xs font-medium">{t('inspector.containedIn')}</div>
-          <div className="mt-1 font-mono text-xs text-accent">
+          <div className="mt-1 font-mono text-xs text-foreground">
             {targetLabel(node.parentId)}
           </div>
           <p className="mt-1 text-[11px] text-muted-foreground">{t('inspector.containedHint')}</p>
+          {nestVisualOnly && (
+            <p className="mt-1 text-[11px] text-muted-foreground">
+              {t('inspector.nestingVisualOnly', { resource: t(`palette.resource.${node.data.type}`) })}
+            </p>
+          )}
         </div>
       )}
+
+      <div className="border-b px-4 py-3">
+        <div className="mb-2 text-xs font-medium">{t('inspector.references')}</div>
+        {refs.length === 0 ? (
+          <p className="text-xs text-muted-foreground">{t('inspector.noReferences')}</p>
+        ) : (
+          <div className="space-y-2">
+            {refs.map((r) => (
+              <div key={r.attribute} className="rounded-md border px-2 py-1.5">
+                <div className="truncate font-mono text-xs text-foreground">{r.attribute}</div>
+                <div className="mt-1 space-y-1">
+                  {r.targetIds.map((tid, i) => (
+                    <div key={tid} className="flex items-center justify-between gap-2">
+                      <span className="min-w-0 truncate text-[11px] text-muted-foreground">
+                        {r.origin === 'nesting'
+                          ? t('inspector.refFromNesting', { target: targetLabel(tid) })
+                          : t('inspector.refFromConnection', { target: targetLabel(tid) })}
+                      </span>
+                      {r.origin === 'connection' && r.edgeIds && (
+                        <button
+                          type="button"
+                          onClick={() => onEdgesChange([{ type: 'remove', id: r.edgeIds![i] }])}
+                          aria-label={`${t('inspector.removeRef')}: ${targetLabel(tid)}`}
+                          title={t('inspector.removeRef')}
+                          className="shrink-0 text-muted-foreground hover:text-destructive"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
 
       <div className="flex-1 px-4 py-3">
         <div className="mb-2 text-xs font-medium">{t('inspector.attributes')}</div>

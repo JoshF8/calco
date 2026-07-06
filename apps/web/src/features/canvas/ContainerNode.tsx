@@ -28,11 +28,16 @@ export function ContainerNode({ id, data, selected }: NodeProps) {
     120,
   );
 
+  // A container is never a connection target (its relationships are containment,
+  // set by dropping resources inside). While a connection drag is in flight,
+  // dim it so the eye goes to the resource dots that can actually receive it.
+  const connecting = useCanvasStore((s) => s.connectSource !== null);
+
   return (
     <div
       className={cn(
-        'h-full w-full rounded-lg border-2 bg-card/25',
-        selected ? 'border-ring' : 'border-dashed border-border',
+        'relative h-full w-full rounded-lg border-2 bg-card/25 transition-opacity',
+        connecting ? 'border-dashed border-border opacity-40' : selected ? 'border-ring' : 'border-dashed border-border',
       )}
     >
       <NodeResizer isVisible={selected} minWidth={minWidth} minHeight={minHeight} />
@@ -56,6 +61,16 @@ export function ContainerNode({ id, data, selected }: NodeProps) {
           </span>
         </div>
       </div>
+
+      {/* An empty box gives no clue it holds things. A faint line in the body
+          teaches the nest gesture (drop a resource inside) — the only way to
+          reach the containment relationship, since containers carry no handles.
+          pointer-events-none so it never blocks the drop it describes. */}
+      {children.length === 0 && (
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 top-11 flex items-center justify-center px-4 text-center">
+          <span className="text-[11px] text-muted-foreground/70">{t('canvas.container.nestHint')}</span>
+        </div>
+      )}
     </div>
   );
 }

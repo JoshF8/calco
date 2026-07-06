@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useMutation } from '@tanstack/react-query';
-import { Download, FileCode, Loader2 } from 'lucide-react';
+import { Check, Copy, Download, FileCode, Loader2 } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
 import { Button } from '@/shared/components/ui/button';
 import { useCanvasStore } from '../canvas/store';
@@ -33,7 +33,7 @@ export function ExportPanel() {
         <p className="text-xs text-muted-foreground">
           {t('export.resourceCount', { count: resourceCount })}
         </p>
-        <Button size="sm" onClick={() => mutation.mutate()} disabled={resourceCount === 0 || mutation.isPending}>
+        <Button variant="accent" size="sm" onClick={() => mutation.mutate()} disabled={resourceCount === 0 || mutation.isPending}>
           {mutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileCode className="h-4 w-4" />}
           {t('export.button')}
         </Button>
@@ -72,23 +72,28 @@ export function ExportPanel() {
                 tabIndex={active === name ? 0 : -1}
                 onClick={() => setActive(name)}
                 className={
-                  'rounded px-2 py-1 font-mono text-xs ' +
-                  (active === name ? 'bg-accent text-accent-foreground' : 'text-muted-foreground hover:bg-accent/10')
+                  'border-b-2 px-2 py-1 font-mono text-xs transition-colors ' +
+                  (active === name
+                    ? 'border-accent text-foreground'
+                    : 'border-transparent text-muted-foreground hover:bg-secondary hover:text-foreground')
                 }
               >
                 {name}
               </button>
             ))}
           </div>
-          <pre
-            role="tabpanel"
-            id="file-panel"
-            aria-labelledby={active ? `file-tab-${active}` : undefined}
-            className="flex-1 overflow-auto bg-background px-4 py-3 font-mono text-xs leading-relaxed"
-          >
-            <code>{active ? files[active] : ''}</code>
-          </pre>
-          <div className="border-t px-4 py-2">
+          <div className="relative flex-1 overflow-hidden">
+            {active && <CopyButton content={files[active]} />}
+            <pre
+              role="tabpanel"
+              id="file-panel"
+              aria-labelledby={active ? `file-tab-${active}` : undefined}
+              className="h-full overflow-auto bg-background px-4 py-3 font-mono text-xs leading-relaxed"
+            >
+              <code>{active ? files[active] : ''}</code>
+            </pre>
+          </div>
+          <div className="space-y-2 border-t px-4 py-2">
             <Button
               variant="outline"
               size="sm"
@@ -98,6 +103,9 @@ export function ExportPanel() {
               <Download className="h-4 w-4" />
               {t('export.download')}
             </Button>
+            <p className="text-[11px] leading-relaxed text-muted-foreground">
+              {t('export.schemaDisclaimer')}
+            </p>
           </div>
         </>
       )}
@@ -105,17 +113,38 @@ export function ExportPanel() {
   );
 }
 
-// downloadFiles concatenates the generated files into a single .tf download.
-// (Per-file zipping can come later; one file is enough to copy into a project.)
+function CopyButton({ content }: { content: string }) {
+  const { t } = useTranslation();
+  const [copied, setCopied] = useState(false);
+  const copy = async () => {
+    await navigator.clipboard.writeText(content);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  };
+  return (
+    <Button
+      variant="outline"
+      size="sm"
+      onClick={copy}
+      className="absolute right-3 top-3 z-10 h-7 px-2"
+      aria-label={copied ? t('export.copied') : t('export.copy')}
+    >
+      {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+      {copied ? t('export.copied') : t('export.copy')}
+    </Button>
+  );
+}
+
+// downloadFiles saves each generated file under its own real filename, so
+// providers.tf stays a separate valid file rather than being merged into main.tf.
 function downloadFiles(files: Files) {
-  const combined = Object.entries(files)
-    .map(([name, content]) => `# ${name}\n${content}`)
-    .join('\n');
-  const blob = new Blob([combined], { type: 'text/plain' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = 'calco.tf';
-  a.click();
-  URL.revokeObjectURL(url);
+  for (const [name, content] of Object.entries(files)) {
+    const blob = new Blob([content], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = name;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
 }

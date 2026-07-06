@@ -21,17 +21,25 @@ export function isContainer(type: string): boolean {
 export interface NestRule {
   /** The container type this resource nests into. */
   parentType: string;
-  /** The attribute that holds the reference when nested. */
-  attribute: string;
+  /** The attribute that holds the reference when nested, or undefined when the
+   * nesting is visual grouping only (no real Terraform argument exists). */
+  attribute?: string;
 }
 
 // What each nestable type nests into, and via which reference attribute.
+//
+// RDS and load balancers really span *multiple* subnets — their subnet
+// membership is expressed by an aws_db_subnet_group / an aws_lb.subnets list,
+// not a single subnet_id. Emitting subnet_id on them would be an invented
+// argument terraform validate rejects, so they nest for visual grouping only
+// (attribute omitted) until those constructs are modelled. Better no argument
+// than a wrong one.
 const nesting: Record<string, NestRule> = {
   aws_subnet: { parentType: 'aws_vpc', attribute: 'vpc_id' },
   aws_security_group: { parentType: 'aws_vpc', attribute: 'vpc_id' },
   aws_instance: { parentType: 'aws_subnet', attribute: 'subnet_id' },
-  aws_db_instance: { parentType: 'aws_subnet', attribute: 'subnet_id' },
-  aws_lb: { parentType: 'aws_subnet', attribute: 'subnet_id' },
+  aws_db_instance: { parentType: 'aws_subnet' },
+  aws_lb: { parentType: 'aws_subnet' },
 };
 
 /** nestRule returns how a type nests, or undefined if it is a free resource. */

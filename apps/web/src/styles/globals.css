@@ -165,3 +165,24 @@ body {
   box-shadow: 0 1px 3px rgb(0 0 0 / 0.12);
 }
 
+/* Reference edges: ink at rest, foreground on hover, oxblood only when selected
+   (the selected stroke comes from --xy-edge-stroke-selected). A dense diagram
+   reads as an ink web, keeping oxblood scarce. */
+.react-flow__edge-path {
+  stroke-width: 1.5;
+}
+.react-flow__edge:hover .react-flow__edge-path {
+  stroke: var(--foreground);
+  stroke-width: 2;
+}
+
+/* Container resize handles, themed to paper/ink instead of react-flow blue. */
+.react-flow__resize-control.handle {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 2px;
+}
+.react-flow__resize-control.line {
+  border-color: var(--border);
+}
+
