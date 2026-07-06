@@ -19,6 +19,7 @@ import type { components } from '@/lib/types.gen';
 import { shortType } from './catalog';
 import { containerSize, isContainer, nestRule } from './containment';
 import { connectionReasonKey, connectionRule, type ConnectionReason } from './connection';
+import { EXAMPLES } from './examples';
 import type { ResourceNodeData } from './ResourceNode';
 
 export type ApiModel = components['schemas']['Model'];
@@ -117,10 +118,11 @@ interface CanvasActions {
   unnestNode: (id: string, position: { x: number; y: number }) => void;
   /** clear empties the canvas. */
   clear: () => void;
-  /** loadExample seeds the canonical VPC + 2 subnets + 2 instances + SG graph
-   * (the corrected version of the fidelity-feedback example), for the empty
-   * state and as a living regression fixture. */
-  loadExample: () => void;
+  /** loadExample replaces the canvas with a ready-made example graph (see
+   * examples.ts). With no id it loads the default (first) example; the gallery
+   * doubles as a living regression fixture for the connection/containment
+   * rules. */
+  loadExample: (id?: string) => void;
   /** toApiModel projects the canvas into the generate endpoint's wire shape. */
   toApiModel: () => ApiModel;
 }
@@ -405,46 +407,13 @@ export const useCanvasStore = create<CanvasState & CanvasActions>((set, get) => 
 
   clear: () => set({ nodes: [], edges: [], lastRejection: null }),
 
-  loadExample: () =>
+  loadExample: (id) =>
     set(() => {
-      const mk = (
-        type: string,
-        name: string,
-        position: { x: number; y: number },
-        size?: { width: number; height: number },
-        parentId?: string,
-      ): ResourceNode => ({
-        id: crypto.randomUUID(),
-        type: isContainer(type) ? 'container' : 'resource',
-        position,
-        ...(size ?? {}),
-        ...(parentId ? { parentId } : {}),
-        data: { type, name, attributes: {} },
-      });
-
-      const vpc = mk('aws_vpc', 'vpc_1', { x: 80, y: 60 }, { width: 560, height: 340 });
-      const sub1 = mk('aws_subnet', 'subnet_1', { x: 16, y: 52 }, { width: 250, height: 190 }, vpc.id);
-      const sub2 = mk('aws_subnet', 'subnet_2', { x: 288, y: 52 }, { width: 250, height: 190 }, vpc.id);
-      const sg = mk('aws_security_group', 'security_group_1', { x: 20, y: 262 }, undefined, vpc.id);
-      const i1 = mk('aws_instance', 'instance_1', { x: 18, y: 64 }, undefined, sub1.id);
-      const i2 = mk('aws_instance', 'instance_2', { x: 18, y: 64 }, undefined, sub2.id);
-
-      // Both instances reference the SG via the real list argument.
-      const rule = connectionRule('aws_instance', 'aws_security_group')!;
-      const link = (instanceId: string): Edge => ({
-        id: crypto.randomUUID(),
-        source: instanceId,
-        target: sg.id,
-        type: 'ref',
-        data: { attribute: rule.attribute, cardinality: rule.cardinality, refAttr: rule.refAttr } as RefEdgeData,
-        markerEnd: { type: MarkerType.ArrowClosed, color: 'var(--xy-edge-stroke)' },
-      });
-
-      return {
-        nodes: parentsFirst([vpc, sub1, sub2, sg, i1, i2]),
-        edges: [link(i1.id), link(i2.id)],
-        lastRejection: null,
-      };
+      const def = (id ? EXAMPLES.find((e) => e.id === id) : undefined) ?? EXAMPLES[0];
+      const { nodes, edges } = def.build();
+      // parentsFirst keeps every parent before its children (React Flow's
+      // requirement) and stamps the fixed z-order.
+      return { nodes: parentsFirst(nodes), edges, lastRejection: null };
     }),
 
   toApiModel: () => {

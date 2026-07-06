@@ -19,8 +19,8 @@ import {
   type OnReconnect,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import { Button } from '@/shared/components/ui/button';
 import { useCanvasStore, type ResourceNode } from './store';
+import { EXAMPLES } from './examples';
 import { ResourceNode as ResourceNodeView } from './ResourceNode';
 import { ContainerNode } from './ContainerNode';
 import { RefEdge } from './RefEdge';
@@ -288,14 +288,23 @@ function Flow({ dark }: { dark: boolean }) {
       </ReactFlow>
 
       {nodes.length === 0 && (
-        <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-4 text-center">
+        <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-4 px-6 text-center">
           <div className="flex flex-col gap-1">
             <p className="text-sm font-medium text-foreground">{t('canvas.empty.title')}</p>
             <p className="text-xs text-muted-foreground">{t('canvas.empty.hint')}</p>
           </div>
-          <Button variant="outline" size="sm" className="pointer-events-auto" onClick={() => loadExample()}>
-            {t('canvas.empty.loadExample')}
-          </Button>
+          <div className="pointer-events-auto grid w-full max-w-xl grid-cols-1 gap-2 sm:grid-cols-2">
+            {EXAMPLES.map((ex) => (
+              <button
+                key={ex.id}
+                onClick={() => loadExample(ex.id)}
+                className="flex flex-col rounded-md border bg-card/80 px-3 py-2 text-left transition-colors hover:border-primary/40 hover:bg-secondary"
+              >
+                <span className="text-sm font-medium text-foreground">{t(`canvas.example.${ex.id}.name`)}</span>
+                <span className="text-xs text-muted-foreground">{t(`canvas.example.${ex.id}.desc`)}</span>
+              </button>
+            ))}
+          </div>
         </div>
       )}
 

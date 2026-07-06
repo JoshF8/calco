@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { useCanvasStore } from './store';
+import { useCanvasStore, type ApiAttrValue } from './store';
 import { containerSize } from './containment';
+import { EXAMPLES } from './examples';
 
 describe('canvas store', () => {
   beforeEach(() => useCanvasStore.getState().clear());
@@ -430,5 +431,31 @@ describe('canvas store', () => {
     // The SG is scoped to the VPC by nesting (real vpc_id), not by a connection.
     const sg = model.resources!.find((r) => r.type === 'aws_security_group')!;
     expect(sg.attributes!.vpc_id?.kind).toBe('ref');
+  });
+
+  it('every example builds a valid, self-contained graph', () => {
+    expect(EXAMPLES.length).toBeGreaterThan(1);
+    for (const ex of EXAMPLES) {
+      useCanvasStore.getState().loadExample(ex.id);
+      const resources = useCanvasStore.getState().toApiModel().resources ?? [];
+      expect(resources.length).toBeGreaterThan(0);
+
+      // Addresses (type.name) must be unique — the generator requires it.
+      const addrs = resources.map((r) => `${r.type}.${r.name}`);
+      expect(new Set(addrs).size).toBe(addrs.length);
+
+      // Every reference (from a connection or from nesting) must resolve to a
+      // resource in the same graph — no dangling refs the generator would reject.
+      const ids = new Set(resources.map((r) => r.id));
+      const targets: string[] = [];
+      const walk = (v: ApiAttrValue): void => {
+        if (v.kind === 'ref' && v.target) targets.push(v.target);
+        if (v.kind === 'list' && v.items) v.items.forEach(walk);
+      };
+      for (const r of resources) {
+        for (const key of Object.keys(r.attributes ?? {})) walk(r.attributes![key]);
+      }
+      for (const target of targets) expect(ids.has(target)).toBe(true);
+    }
   });
 });

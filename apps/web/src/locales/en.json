@@ -98,8 +98,15 @@
   "canvas": {
     "empty": {
       "title": "The canvas is empty",
-      "hint": "Add a VPC to begin, or load an example.",
-      "loadExample": "Load example"
+      "hint": "Add a resource to begin, or start from an example:"
+    },
+    "example": {
+      "web": { "name": "Web tier", "desc": "VPC, subnets, EC2 instances and a shared security group" },
+      "network": { "name": "Network foundation", "desc": "VPC with public/private subnets, an internet gateway and a NAT + EIP" },
+      "loadBalanced": { "name": "Load-balanced app", "desc": "Load balancer with target group and listener, over two instances" },
+      "database": { "name": "Database (RDS)", "desc": "RDS with a subnet group, a security group and a KMS key" },
+      "compute": { "name": "Secured EC2", "desc": "An EC2 instance assuming an IAM role via an instance profile" },
+      "serverless": { "name": "Serverless", "desc": "Lambda with an IAM role, plus DynamoDB, S3 and ECR" }
     },
     "coach": {
       "connect": "Drag from a resource's dot to another to connect them."

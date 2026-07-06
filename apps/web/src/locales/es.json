@@ -98,8 +98,15 @@
   "canvas": {
     "empty": {
       "title": "El canvas está vacío",
-      "hint": "Agregá un VPC para empezar, o cargá un ejemplo.",
-      "loadExample": "Cargar ejemplo"
+      "hint": "Agregá un recurso para empezar, o partí de un ejemplo:"
+    },
+    "example": {
+      "web": { "name": "Capa web", "desc": "VPC, subredes, instancias EC2 y un security group compartido" },
+      "network": { "name": "Base de red", "desc": "VPC con subredes pública/privada, un internet gateway y un NAT + EIP" },
+      "loadBalanced": { "name": "App con balanceador", "desc": "Balanceador con target group y listener, sobre dos instancias" },
+      "database": { "name": "Base de datos (RDS)", "desc": "RDS con subnet group, un security group y una clave KMS" },
+      "compute": { "name": "EC2 con IAM", "desc": "Una instancia EC2 que asume un rol IAM vía instance profile" },
+      "serverless": { "name": "Serverless", "desc": "Lambda con un rol IAM, más DynamoDB, S3 y ECR" }
     },
     "coach": {
       "connect": "Arrastrá desde el punto de un recurso hasta otro para conectarlos."
