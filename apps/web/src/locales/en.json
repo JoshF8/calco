@@ -36,6 +36,7 @@
       "aws_instance": "EC2 Instance",
       "aws_lambda_function": "Lambda Function",
       "aws_s3_bucket": "S3 Bucket",
+      "aws_ecr_repository": "ECR Repository",
       "aws_db_instance": "RDS Database",
       "aws_dynamodb_table": "DynamoDB Table",
       "aws_security_group": "Security Group",

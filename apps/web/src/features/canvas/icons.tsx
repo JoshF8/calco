@@ -5,6 +5,7 @@ import type { ComponentType } from 'react';
 import {
   Archive,
   Box,
+  Container,
   Database,
   Globe,
   KeyRound,
@@ -29,6 +30,7 @@ const iconByType: Record<string, LucideIcon> = {
   aws_instance: Server,
   aws_lambda_function: Zap,
   aws_s3_bucket: Archive,
+  aws_ecr_repository: Container,
   aws_db_instance: Database,
   aws_dynamodb_table: Table2,
   aws_security_group: ShieldCheck,

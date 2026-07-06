@@ -22,6 +22,7 @@ export const catalog: CatalogEntry[] = [
   { type: 'aws_instance', group: 'compute' },
   { type: 'aws_lambda_function', group: 'compute' },
   { type: 'aws_s3_bucket', group: 'storage' },
+  { type: 'aws_ecr_repository', group: 'storage' },
   { type: 'aws_db_instance', group: 'database' },
   { type: 'aws_dynamodb_table', group: 'database' },
   { type: 'aws_security_group', group: 'security' },
