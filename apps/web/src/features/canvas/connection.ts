@@ -38,6 +38,7 @@ const rules: ConnectionRule[] = [
   { from: 'aws_db_instance', to: 'aws_security_group', attribute: 'vpc_security_group_ids', cardinality: 'list', refAttr: 'id' },
   { from: 'aws_lb', to: 'aws_security_group', attribute: 'security_groups', cardinality: 'list', refAttr: 'id' },
   { from: 'aws_lambda_function', to: 'aws_iam_role', attribute: 'role', cardinality: 'scalar', refAttr: 'arn' },
+  { from: 'aws_db_instance', to: 'aws_kms_key', attribute: 'kms_key_id', cardinality: 'scalar', refAttr: 'arn' },
 ];
 
 /** connectionRule returns the rule for a pair in either drag order, with its

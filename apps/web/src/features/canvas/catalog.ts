@@ -27,6 +27,7 @@ export const catalog: CatalogEntry[] = [
   { type: 'aws_dynamodb_table', group: 'database' },
   { type: 'aws_security_group', group: 'security' },
   { type: 'aws_iam_role', group: 'security' },
+  { type: 'aws_kms_key', group: 'security' },
 ];
 
 /** The order groups are shown in the palette. */

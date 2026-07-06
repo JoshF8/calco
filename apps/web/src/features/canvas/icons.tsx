@@ -9,6 +9,7 @@ import {
   Database,
   Globe,
   KeyRound,
+  KeySquare,
   Network,
   Router,
   Server,
@@ -35,6 +36,7 @@ const iconByType: Record<string, LucideIcon> = {
   aws_dynamodb_table: Table2,
   aws_security_group: ShieldCheck,
   aws_iam_role: KeyRound,
+  aws_kms_key: KeySquare,
 };
 
 /** Renders the icon for a resource type. */

@@ -40,7 +40,8 @@
       "aws_db_instance": "RDS Database",
       "aws_dynamodb_table": "DynamoDB Table",
       "aws_security_group": "Security Group",
-      "aws_iam_role": "IAM Role"
+      "aws_iam_role": "IAM Role",
+      "aws_kms_key": "KMS Key"
     }
   },
   "connection": {
