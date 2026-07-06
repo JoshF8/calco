@@ -38,6 +38,7 @@ export interface NestRule {
 const nesting: Record<string, NestRule> = {
   aws_subnet: { parentType: 'aws_vpc', attribute: 'vpc_id' },
   aws_security_group: { parentType: 'aws_vpc', attribute: 'vpc_id' },
+  aws_internet_gateway: { parentType: 'aws_vpc', attribute: 'vpc_id' },
   aws_instance: { parentType: 'aws_subnet', attribute: 'subnet_id' },
   aws_db_instance: { parentType: 'aws_subnet' },
   aws_lb: { parentType: 'aws_subnet' },

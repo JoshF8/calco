@@ -6,6 +6,7 @@ import {
   Archive,
   Box,
   Database,
+  Globe,
   KeyRound,
   Network,
   Server,
@@ -20,6 +21,7 @@ type LucideIcon = ComponentType<{ className?: string }>;
 const iconByType: Record<string, LucideIcon> = {
   aws_vpc: Network,
   aws_subnet: Waypoints,
+  aws_internet_gateway: Globe,
   aws_lb: Split,
   aws_instance: Server,
   aws_lambda_function: Zap,

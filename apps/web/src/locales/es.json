@@ -30,6 +30,7 @@
     "resource": {
       "aws_vpc": "VPC",
       "aws_subnet": "Subred",
+      "aws_internet_gateway": "Gateway de Internet",
       "aws_lb": "Balanceador",
       "aws_instance": "Instancia EC2",
       "aws_lambda_function": "Función Lambda",
