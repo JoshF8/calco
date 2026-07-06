@@ -98,7 +98,8 @@
       "connect": "Drag to connect"
     },
     "container": {
-      "nestHint": "Drag resources in here to nest them."
+      "nestHint": "Drag resources in here to nest them.",
+      "dropToNest": "Drop it inside to nest — that nesting creates the reference."
     }
   },
   "export": {

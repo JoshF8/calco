@@ -51,25 +51,48 @@ function Flow({ dark }: { dark: boolean }) {
   const showConnectionHint = useCanvasStore((s) => s.showConnectionHint);
   const nestNode = useCanvasStore((s) => s.nestNode);
   const unnestNode = useCanvasStore((s) => s.unnestNode);
+  const setDropTarget = useCanvasStore((s) => s.setDropTarget);
   const loadExample = useCanvasStore((s) => s.loadExample);
   const { getIntersectingNodes, getInternalNode } = useReactFlow<ResourceNode>();
 
+  // The container a dragged node would nest into, by geometry: the smallest
+  // (innermost) intersecting node of the type this node's nest rule allows, or
+  // null. Shared by the live drag (to preview the drop-target) and the drop
+  // itself (to commit the nesting), so highlight and outcome can never diverge.
+  const nestTargetFor = useCallback(
+    (node: Node<ResourceNode['data']>): Node | null => {
+      const rule = nestRule(node.data.type);
+      if (!rule) return null;
+      const hits = getIntersectingNodes(node).filter(
+        (n) => n.id !== node.id && n.data?.type === rule.parentType,
+      );
+      return hits.sort((a, b) => area(a) - area(b))[0] ?? null;
+    },
+    [getIntersectingNodes],
+  );
+
+  // While a node is dragged, light up the container it would nest into (a
+  // different one than its current parent) so nesting is discoverable before
+  // the drop. Cleared when the drag wouldn't nest anywhere.
+  const onNodeDrag = useCallback<OnNodeDrag<ResourceNode>>(
+    (_, node) => {
+      const target = nestTargetFor(node);
+      const current = node.parentId ?? null;
+      setDropTarget(target && target.id !== current ? target.id : null);
+    },
+    [nestTargetFor, setDropTarget],
+  );
+
   // On drop, project containment from geometry: if the node landed inside a
   // valid container, nest it (and create the reference); if it left its
-  // container, free it (and drop the reference).
+  // container, free it (and drop the reference). Clear the drag preview either
+  // way.
   const onNodeDragStop = useCallback<OnNodeDrag<ResourceNode>>(
     (_, node) => {
+      setDropTarget(null);
       const rule = nestRule(node.data.type);
       const current = node.parentId ?? null;
-
-      let target: Node | null = null;
-      if (rule) {
-        const hits = getIntersectingNodes(node).filter(
-          (n) => n.id !== node.id && n.data?.type === rule.parentType,
-        );
-        // Innermost (smallest) wins if several containers overlap.
-        target = hits.sort((a, b) => area(a) - area(b))[0] ?? null;
-      }
+      const target = nestTargetFor(node);
 
       if (target && target.id !== current) {
         const childAbs = getInternalNode(node.id)?.internals.positionAbsolute;
@@ -85,7 +108,7 @@ function Flow({ dark }: { dark: boolean }) {
         if (abs) unnestNode(node.id, abs);
       }
     },
-    [getIntersectingNodes, getInternalNode, nestNode, unnestNode],
+    [nestTargetFor, getInternalNode, nestNode, unnestNode, setDropTarget],
   );
 
   // While a connection drag is in flight, remember which node it started from so
@@ -150,6 +173,7 @@ function Flow({ dark }: { dark: boolean }) {
         onConnect={onConnect}
         onConnectStart={onConnectStart}
         onConnectEnd={onConnectEnd}
+        onNodeDrag={onNodeDrag}
         onNodeDragStop={onNodeDragStop}
         onBeforeDelete={onBeforeDelete}
         // Either handle can start a drag; the store orients the edge by rule
@@ -158,7 +182,12 @@ function Flow({ dark }: { dark: boolean }) {
         connectionMode={ConnectionMode.Loose}
         colorMode={colorMode}
         fitView
-        fitViewOptions={{ padding: 0.3, maxZoom: 1 }}
+        // Start a touch zoomed out: a few small nodes would otherwise fill the
+        // viewport at 100%. Capping the fit at 0.8 (and starting an empty canvas
+        // there via defaultViewport) leaves room to place and nest without an
+        // immediate pan.
+        fitViewOptions={{ padding: 0.35, maxZoom: 0.8 }}
+        defaultViewport={{ x: 24, y: 24, zoom: 0.8 }}
         deleteKeyCode={['Backspace', 'Delete']}
         elevateNodesOnSelect={false}
       >

@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { useCanvasStore } from './store';
+import { containerSize } from './containment';
 
 describe('canvas store', () => {
   beforeEach(() => useCanvasStore.getState().clear());
@@ -80,7 +81,7 @@ describe('canvas store', () => {
     addResource('aws_s3_bucket');
     const [vpc, bucket] = useCanvasStore.getState().nodes;
     expect(vpc.type).toBe('container');
-    expect(vpc.width).toBe(400);
+    expect(vpc.width).toBe(containerSize.aws_vpc.width);
     expect(bucket.type).toBe('resource');
     expect(bucket.width).toBeUndefined();
   });

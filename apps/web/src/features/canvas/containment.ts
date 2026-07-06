@@ -7,10 +7,11 @@
 // RDS and load balancers really span multiple subnets; nesting them in a
 // single subnet is an MVP simplification.
 
-/** Default on-canvas size for a container node, by type. */
+/** Default on-canvas size for a container node, by type. Generous by default so
+ * a freshly-added VPC/subnet has room to drop resources into before resizing. */
 export const containerSize: Record<string, { width: number; height: number }> = {
-  aws_vpc: { width: 400, height: 300 },
-  aws_subnet: { width: 240, height: 170 },
+  aws_vpc: { width: 1050, height: 750 },
+  aws_subnet: { width: 480, height: 360 },
 };
 
 /** isContainer reports whether a type renders as a box that can hold children. */

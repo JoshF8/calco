@@ -98,7 +98,8 @@
       "connect": "Arrastrá para conectar"
     },
     "container": {
-      "nestHint": "Arrastrá recursos acá adentro para anidarlos."
+      "nestHint": "Arrastrá recursos acá adentro para anidarlos.",
+      "dropToNest": "Soltalo adentro para anidarlo — esa anidación genera la referencia."
     }
   },
   "export": {

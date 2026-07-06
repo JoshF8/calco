@@ -28,16 +28,26 @@ export function ContainerNode({ id, data, selected }: NodeProps) {
     120,
   );
 
-  // A container is never a connection target (its relationships are containment,
-  // set by dropping resources inside). While a connection drag is in flight,
-  // dim it so the eye goes to the resource dots that can actually receive it.
+  // A container is never a connection *target* — it carries no handles, so
+  // during a connection drag we dim it, sending the eye to the dots that can
+  // receive the line. Nesting is a different gesture: while a resource *node* is
+  // being dragged and hovers a container it belongs inside, Canvas marks that
+  // container the live drop-target (geometry). Light it up and name the gesture
+  // so nesting is discoverable *before* the drop, not only learned after it.
   const connecting = useCanvasStore((s) => s.connectSource !== null);
+  const isDropTarget = useCanvasStore((s) => s.dropTargetId === id);
 
   return (
     <div
       className={cn(
-        'relative h-full w-full rounded-lg border-2 bg-card/25 transition-opacity',
-        connecting ? 'border-dashed border-border opacity-40' : selected ? 'border-ring' : 'border-dashed border-border',
+        'relative h-full w-full rounded-lg border-2 bg-card/25 transition-[opacity,border-color,background-color]',
+        isDropTarget
+          ? 'border-solid border-foreground/60 bg-card/50'
+          : connecting
+            ? 'border-dashed border-border opacity-40'
+            : selected
+              ? 'border-ring'
+              : 'border-dashed border-border',
       )}
     >
       <NodeResizer isVisible={selected} minWidth={minWidth} minHeight={minHeight} />
@@ -62,14 +72,23 @@ export function ContainerNode({ id, data, selected }: NodeProps) {
         </div>
       </div>
 
-      {/* An empty box gives no clue it holds things. A faint line in the body
-          teaches the nest gesture (drop a resource inside) — the only way to
-          reach the containment relationship, since containers carry no handles.
-          pointer-events-none so it never blocks the drop it describes. */}
-      {children.length === 0 && (
+      {/* Two body hints, mutually exclusive. While a droppable node hovers this
+          container, the drop-to-nest teaching takes over — the answer to "what
+          happens if I let go here?". Otherwise, an empty box gives no clue it
+          holds things, so a faint line teaches the nest gesture. Both are
+          pointer-events-none so they never block the drop they describe. */}
+      {isDropTarget ? (
         <div className="pointer-events-none absolute inset-x-0 bottom-0 top-11 flex items-center justify-center px-4 text-center">
-          <span className="text-[11px] text-muted-foreground/70">{t('canvas.container.nestHint')}</span>
+          <span className="rounded-md bg-card/90 px-2 py-1 text-[11px] font-medium leading-relaxed text-foreground shadow-sm ring-1 ring-inset ring-border">
+            {t('canvas.container.dropToNest')}
+          </span>
         </div>
+      ) : (
+        children.length === 0 && (
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 top-11 flex items-center justify-center px-4 text-center">
+            <span className="text-[11px] text-muted-foreground/70">{t('canvas.container.nestHint')}</span>
+          </div>
+        )
       )}
     </div>
   );

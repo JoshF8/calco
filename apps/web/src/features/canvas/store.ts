@@ -53,6 +53,10 @@ interface CanvasState {
   lastRejection: Rejection | null;
   /** The node a connection drag started from, while it is in flight. */
   connectSource: ConnectSource | null;
+  /** The container a node drag is currently hovering as its nest target, while
+   * the drag is in flight — so that container can light up and name the gesture
+   * before the drop. Null when no drag would nest anywhere. */
+  dropTargetId: string | null;
 }
 
 interface CanvasActions {
@@ -83,6 +87,11 @@ interface CanvasActions {
   startConnect: (nodeId: string | null) => void;
   /** endConnect clears the in-flight connection source. */
   endConnect: () => void;
+  /** setDropTarget marks (or clears) the container a dragged node is currently
+   * hovering as its nest target. Visual only — the actual nest happens on drop
+   * (onNodeDragStop). A no-op when the value is unchanged, so the frequent
+   * drag-move calls don't churn re-renders. */
+  setDropTarget: (id: string | null) => void;
   /** setNodeName renames a resource (its Terraform name slug). */
   setNodeName: (id: string, name: string) => void;
   /** setAttribute sets or replaces an attribute on a resource. */
@@ -223,6 +232,7 @@ export const useCanvasStore = create<CanvasState & CanvasActions>((set, get) => 
   edges: [],
   lastRejection: null,
   connectSource: null,
+  dropTargetId: null,
 
   addResource: (type) =>
     set((s) => {
@@ -303,6 +313,8 @@ export const useCanvasStore = create<CanvasState & CanvasActions>((set, get) => 
     }),
 
   endConnect: () => set({ connectSource: null }),
+
+  setDropTarget: (id) => set((s) => (s.dropTargetId === id ? {} : { dropTargetId: id })),
 
   setNodeName: (id, name) =>
     set((s) => ({
