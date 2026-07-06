@@ -4,6 +4,7 @@
 import type { ComponentType } from 'react';
 import {
   Archive,
+  BadgeCheck,
   Box,
   Boxes,
   Container,
@@ -44,6 +45,7 @@ const iconByType: Record<string, LucideIcon> = {
   aws_dynamodb_table: Table2,
   aws_security_group: ShieldCheck,
   aws_iam_role: KeyRound,
+  aws_iam_instance_profile: BadgeCheck,
   aws_kms_key: KeySquare,
 };
 

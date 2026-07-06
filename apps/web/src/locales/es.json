@@ -45,6 +45,7 @@
       "aws_db_subnet_group": "Grupo de Subredes DB",
       "aws_security_group": "Security Group",
       "aws_iam_role": "Rol IAM",
+      "aws_iam_instance_profile": "Perfil de Instancia",
       "aws_kms_key": "Clave KMS"
     }
   },
@@ -52,7 +53,7 @@
     "invalid": {
       "sameType": "Dos {{type}} no se referencian entre sí. Conectá recursos de tipos distintos.",
       "s3": "Un bucket S3 no toma este tipo de referencia. Su acceso se modela con políticas y roles IAM.",
-      "instanceRole": "Una instancia EC2 no referencia un rol IAM directamente: se hace con un aws_iam_instance_profile, que calco todavía no incluye.",
+      "instanceRole": "Una instancia EC2 llega a un rol IAM a través de un aws_iam_instance_profile: conectá la instancia a un perfil, y el perfil al rol.",
       "lambdaVpc": "Una función Lambda entra a una VPC con un bloque vpc_config (subredes y security groups juntos), no con una conexión suelta. calco todavía no lo modela.",
       "lbInstance": "Un balanceador no apunta a una instancia directamente: registrá las instancias en un aws_lb_target_group (la asociación en sí todavía no se modela).",
       "sgSource": "Un security group no referencia a ese recurso. Son las instancias, RDS o balanceadores los que lo referencian a él.",

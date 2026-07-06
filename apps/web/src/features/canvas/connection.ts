@@ -42,6 +42,8 @@ const rules: ConnectionRule[] = [
   { from: 'aws_lb', to: 'aws_security_group', attribute: 'security_groups', cardinality: 'list', refAttr: 'id' },
   { from: 'aws_lb_listener', to: 'aws_lb', attribute: 'load_balancer_arn', cardinality: 'scalar', refAttr: 'arn' },
   { from: 'aws_lambda_function', to: 'aws_iam_role', attribute: 'role', cardinality: 'scalar', refAttr: 'arn' },
+  { from: 'aws_iam_instance_profile', to: 'aws_iam_role', attribute: 'role', cardinality: 'scalar', refAttr: 'name' },
+  { from: 'aws_instance', to: 'aws_iam_instance_profile', attribute: 'iam_instance_profile', cardinality: 'scalar', refAttr: 'name' },
   { from: 'aws_db_instance', to: 'aws_kms_key', attribute: 'kms_key_id', cardinality: 'scalar', refAttr: 'arn' },
   { from: 'aws_nat_gateway', to: 'aws_eip', attribute: 'allocation_id', cardinality: 'scalar', refAttr: 'id' },
 ];
