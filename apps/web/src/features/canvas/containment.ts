@@ -42,6 +42,7 @@ const nesting: Record<string, NestRule> = {
   aws_instance: { parentType: 'aws_subnet', attribute: 'subnet_id' },
   aws_db_instance: { parentType: 'aws_subnet' },
   aws_lb: { parentType: 'aws_subnet' },
+  aws_nat_gateway: { parentType: 'aws_subnet', attribute: 'subnet_id' },
 };
 
 /** nestRule returns how a type nests, or undefined if it is a free resource. */
