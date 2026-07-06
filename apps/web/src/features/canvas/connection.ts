@@ -36,6 +36,8 @@ export interface ConnectionRule {
 // AWS-accurate rules for the current 9-type catalog + flat-attribute model.
 const rules: ConnectionRule[] = [
   { from: 'aws_instance', to: 'aws_security_group', attribute: 'vpc_security_group_ids', cardinality: 'list', refAttr: 'id' },
+  { from: 'aws_db_subnet_group', to: 'aws_subnet', attribute: 'subnet_ids', cardinality: 'list', refAttr: 'id' },
+  { from: 'aws_db_instance', to: 'aws_db_subnet_group', attribute: 'db_subnet_group_name', cardinality: 'scalar', refAttr: 'name' },
   { from: 'aws_db_instance', to: 'aws_security_group', attribute: 'vpc_security_group_ids', cardinality: 'list', refAttr: 'id' },
   { from: 'aws_lb', to: 'aws_security_group', attribute: 'security_groups', cardinality: 'list', refAttr: 'id' },
   { from: 'aws_lb_listener', to: 'aws_lb', attribute: 'load_balancer_arn', cardinality: 'scalar', refAttr: 'arn' },

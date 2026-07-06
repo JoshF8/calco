@@ -42,6 +42,7 @@
       "aws_ecr_repository": "Repositorio ECR",
       "aws_db_instance": "Base de datos RDS",
       "aws_dynamodb_table": "Tabla DynamoDB",
+      "aws_db_subnet_group": "Grupo de Subredes DB",
       "aws_security_group": "Security Group",
       "aws_iam_role": "Rol IAM",
       "aws_kms_key": "Clave KMS"
