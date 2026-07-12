@@ -21,6 +21,7 @@ export const catalog: CatalogEntry[] = [
   { type: 'aws_lb', group: 'network' },
   { type: 'aws_lb_target_group', group: 'network' },
   { type: 'aws_nat_gateway', group: 'network' },
+  { type: 'aws_route53_record', group: 'network' },
   { type: 'aws_eip', group: 'network' },
   { type: 'aws_instance', group: 'compute' },
   { type: 'aws_key_pair', group: 'compute' },

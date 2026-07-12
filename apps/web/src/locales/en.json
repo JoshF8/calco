@@ -35,6 +35,7 @@
       "aws_lb": "Load Balancer",
       "aws_lb_target_group": "Target Group",
       "aws_nat_gateway": "NAT Gateway",
+      "aws_route53_record": "Route 53 Record",
       "aws_eip": "Elastic IP",
       "aws_instance": "EC2 Instance",
       "aws_key_pair": "Key Pair",

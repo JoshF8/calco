@@ -35,6 +35,7 @@
       "aws_lb": "Balanceador",
       "aws_lb_target_group": "Grupo de Destino",
       "aws_nat_gateway": "Gateway NAT",
+      "aws_route53_record": "Registro Route 53",
       "aws_eip": "IP Elástica",
       "aws_instance": "Instancia EC2",
       "aws_key_pair": "Par de Claves",
