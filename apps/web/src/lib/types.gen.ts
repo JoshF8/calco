@@ -44,6 +44,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Import Terraform into a graph model
+         * @description Parses Terraform source statically (no terraform binary) into a graph model. It reads resource blocks, scalar literals, references between resources, and lists of those. Anything it cannot yet represent — nested blocks, references to var/data/module, functions, count/for_each — is returned as a diagnostic and skipped, never guessed. A 422 is returned only when the HCL does not parse.
+         */
+        post: operations["import-terraform"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/healthz": {
         parameters: {
             query?: never;
@@ -87,6 +107,12 @@ export interface components {
             target?: string;
             /** @description Canonical literal text (when kind=literal); numbers are kept as text to preserve precision. */
             value?: string;
+        };
+        Diagnostic: {
+            address?: string;
+            attribute?: string;
+            file?: string;
+            reason: string;
         };
         Edge: {
             attribute: string;
@@ -177,6 +203,30 @@ export interface components {
              * @example ok
              */
             status: string;
+        };
+        ImportInputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example http://localhost:8080/schemas/ImportInputBody.json
+             */
+            readonly $schema?: string;
+            /** @description Terraform sources keyed by filename (e.g. main.tf). */
+            files: {
+                [key: string]: string;
+            };
+        };
+        ImportOutputBody: {
+            /**
+             * Format: uri
+             * @description A URL to the JSON Schema for this object.
+             * @example http://localhost:8080/schemas/ImportOutputBody.json
+             */
+            readonly $schema?: string;
+            /** @description Constructs that could not be represented and were skipped (empty when everything imported cleanly). */
+            diagnostics: components["schemas"]["Diagnostic"][] | null;
+            /** @description The imported graph model. Positions are unset; the client lays it out. */
+            model: components["schemas"]["Model"];
         };
         Model: {
             /**
@@ -289,6 +339,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["GreetOutputBody"];
+                };
+            };
+            /** @description Error */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    "import-terraform": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ImportInputBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImportOutputBody"];
                 };
             };
             /** @description Error */

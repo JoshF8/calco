@@ -26,8 +26,10 @@ import (
 	httpgenerate "github.com/JoshF8/calco/apps/server/internal/adapters/inbound/http/generate"
 	httphealth "github.com/JoshF8/calco/apps/server/internal/adapters/inbound/http/health"
 	httphello "github.com/JoshF8/calco/apps/server/internal/adapters/inbound/http/hello"
+	httpimporttf "github.com/JoshF8/calco/apps/server/internal/adapters/inbound/http/importtf"
 	appgenerate "github.com/JoshF8/calco/apps/server/internal/application/generate"
 	apphello "github.com/JoshF8/calco/apps/server/internal/application/hello"
+	appimporttf "github.com/JoshF8/calco/apps/server/internal/application/importtf"
 	"github.com/JoshF8/calco/apps/server/internal/config"
 	"github.com/JoshF8/calco/apps/server/internal/observability"
 )
@@ -52,6 +54,7 @@ func run() error {
 	// ─── Use cases (manual DI) ─────────────────────────────────────────────
 	greetUser := apphello.NewGreetUser()
 	generateHCL := appgenerate.NewGenerateHCL()
+	importTerraform := appimporttf.NewImportTerraform()
 
 	// ─── HTTP server ───────────────────────────────────────────────────────
 	router := chi.NewRouter()
@@ -80,6 +83,7 @@ func run() error {
 	httphealth.Register(api)
 	httphello.Register(api, greetUser)
 	httpgenerate.Register(api, generateHCL)
+	httpimporttf.Register(api, importTerraform)
 
 	// Serve Scalar API reference at /docs.
 	router.Get("/docs", httpdocs.Handler(appName+" API Reference", "/openapi.json"))

@@ -150,3 +150,80 @@ func (m Model) ToDomain() *graph.Model {
 	}
 	return out
 }
+
+func attrValueFromDomain(v graph.AttrValue) AttrValue {
+	switch v.Kind {
+	case graph.KindLiteral:
+		lit := v.Lit
+		return AttrValue{Kind: string(graph.KindLiteral), LitType: string(v.LitType), Value: &lit}
+	case graph.KindRef:
+		return AttrValue{Kind: string(graph.KindRef), Target: string(v.RefTarget), Attribute: v.RefAttribute}
+	case graph.KindList:
+		items := make([]AttrValue, len(v.Items))
+		for i, it := range v.Items {
+			items[i] = attrValueFromDomain(it)
+		}
+		return AttrValue{Kind: string(graph.KindList), Items: items}
+	default:
+		// Preserve an unknown kind rather than coercing it to a default.
+		return AttrValue{Kind: string(v.Kind)}
+	}
+}
+
+// FromDomain converts a domain model into the wire model — the inverse of
+// ToDomain — so a server-built model (e.g. from the importer) can be returned
+// to clients in the exact shape the frontend already consumes. Position is
+// emitted only when set: an imported model has no canvas coordinates, and the
+// client lays it out.
+func FromDomain(m *graph.Model) Model {
+	out := Model{
+		Resources: make([]Resource, len(m.Resources)),
+		Edges:     make([]Edge, len(m.Edges)),
+		Variables: make([]Variable, len(m.Variables)),
+		Outputs:   make([]Output, len(m.Outputs)),
+	}
+	for i := range m.Resources {
+		r := m.Resources[i]
+		attrs := make(map[string]AttrValue, len(r.Attributes))
+		for k, v := range r.Attributes {
+			attrs[k] = attrValueFromDomain(v)
+		}
+		var pos *Position
+		if r.Position != (graph.Position{}) {
+			pos = &Position{X: r.Position.X, Y: r.Position.Y}
+		}
+		out.Resources[i] = Resource{
+			ID:         string(r.ID),
+			Type:       r.Type,
+			Name:       r.Name,
+			Attributes: attrs,
+			Position:   pos,
+		}
+	}
+	for i, e := range m.Edges {
+		out.Edges[i] = Edge{From: string(e.From), To: string(e.To), Attribute: e.Attribute}
+	}
+	for i, v := range m.Variables {
+		var def *AttrValue
+		if v.Default != nil {
+			d := attrValueFromDomain(*v.Default)
+			def = &d
+		}
+		out.Variables[i] = Variable{
+			Name:        v.Name,
+			Type:        v.Type,
+			Default:     def,
+			Description: v.Description,
+			Sensitive:   v.Sensitive,
+		}
+	}
+	for i, o := range m.Outputs {
+		out.Outputs[i] = Output{
+			Name:        o.Name,
+			Value:       attrValueFromDomain(o.Value),
+			Description: o.Description,
+			Sensitive:   o.Sensitive,
+		}
+	}
+	return out
+}
