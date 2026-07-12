@@ -37,6 +37,7 @@
       "aws_nat_gateway": "Gateway NAT",
       "aws_eip": "IP Elástica",
       "aws_instance": "Instancia EC2",
+      "aws_key_pair": "Par de Claves",
       "aws_lambda_function": "Función Lambda",
       "aws_s3_bucket": "Bucket S3",
       "aws_ecr_repository": "Repositorio ECR",
