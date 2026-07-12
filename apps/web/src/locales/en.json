@@ -87,6 +87,9 @@
     "nestingVisualOnly": "This nesting only groups on the canvas. {{resource}} spans multiple subnets, so we don't emit a subnet argument yet.",
     "attributes": "Attributes",
     "noAttributes": "No attributes yet.",
+    "suggested": "Suggested",
+    "custom": "Custom",
+    "required": "required",
     "key": "key",
     "type": "Type",
     "value": "value",
@@ -117,6 +120,9 @@
     "container": {
       "nestHint": "Drag resources in here to nest them.",
       "dropToNest": "Drop it inside to nest — that nesting creates the reference."
+    },
+    "edge": {
+      "reference": "{{from}} references {{to}} via {{attribute}}"
     }
   },
   "export": {

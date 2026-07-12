@@ -5,6 +5,7 @@ import type { components } from '@/lib/types.gen';
 import { Button } from '@/shared/components/ui/button';
 import { useCanvasStore, deriveRefs, type ResourceNode } from '@/features/canvas/store';
 import { nestRule } from '@/features/canvas/containment';
+import { attrSchema, attrSpec, defaultAttrValue, type AttrSpec } from '@/features/canvas/schema';
 import { isValidName, isValidNumber } from '@/features/canvas/validation';
 
 type ApiAttrValue = components['schemas']['AttrValue'];
@@ -79,6 +80,15 @@ function ResourceForm({ node, nodes }: { node: ResourceNode; nodes: ResourceNode
   };
 
   const attrKeys = Object.keys(node.data.attributes).sort();
+  // Names already owned by a gesture (a connection or containment ref) — never
+  // suggested, and blocked from the custom editor, since a manually typed value
+  // would be silently overwritten by deriveRefs at projection time.
+  const ownedNames = new Set(refs.map((r) => r.attribute));
+  // Curated arguments not yet set and not gesture-owned — offered as one-click
+  // suggestions with their type already inferred.
+  const suggested = attrSchema(node.data.type).filter(
+    (s) => !(s.name in node.data.attributes) && !ownedNames.has(s.name),
+  );
 
   return (
     <div className="flex flex-1 flex-col overflow-y-auto">
@@ -167,7 +177,7 @@ function ResourceForm({ node, nodes }: { node: ResourceNode; nodes: ResourceNode
 
       <div className="flex-1 px-4 py-3">
         <div className="mb-2 text-xs font-medium">{t('inspector.attributes')}</div>
-        {attrKeys.length === 0 && (
+        {attrKeys.length === 0 && suggested.length === 0 && (
           <p className="text-xs text-muted-foreground">{t('inspector.noAttributes')}</p>
         )}
         <div className="space-y-2">
@@ -176,16 +186,46 @@ function ResourceForm({ node, nodes }: { node: ResourceNode; nodes: ResourceNode
               key={key}
               attrKey={key}
               value={node.data.attributes[key]}
+              spec={attrSpec(node.data.type, key)}
               targetLabel={targetLabel}
               onChange={(v) => setAttribute(node.id, key, v)}
               onRemove={() => removeAttribute(node.id, key)}
             />
           ))}
         </div>
-        <AddAttribute
-          existingKeys={attrKeys}
-          onAdd={(key, value) => setAttribute(node.id, key, value)}
-        />
+
+        {suggested.length > 0 && (
+          <div className="mt-3">
+            <div className="mb-1.5 text-[11px] uppercase tracking-wide text-muted-foreground">
+              {t('inspector.suggested')}
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {suggested.map((spec) => (
+                <button
+                  key={spec.name}
+                  type="button"
+                  onClick={() => setAttribute(node.id, spec.name, defaultAttrValue(spec))}
+                  className="flex items-center gap-1 rounded-md border border-dashed px-2 py-1 font-mono text-[11px] hover:border-primary/40 hover:bg-secondary"
+                  title={spec.required ? `${spec.type} · ${t('inspector.required')}` : spec.type}
+                >
+                  {spec.required && <span aria-hidden className="text-destructive">•</span>}
+                  <span>{spec.name}</span>
+                  <Plus className="h-3 w-3 text-muted-foreground" />
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div className="mt-3">
+          <div className="mb-1.5 text-[11px] uppercase tracking-wide text-muted-foreground">
+            {t('inspector.custom')}
+          </div>
+          <AddAttribute
+            existingKeys={[...attrKeys, ...ownedNames]}
+            onAdd={(key, value) => setAttribute(node.id, key, value)}
+          />
+        </div>
       </div>
     </div>
   );
@@ -194,12 +234,14 @@ function ResourceForm({ node, nodes }: { node: ResourceNode; nodes: ResourceNode
 function AttributeRow({
   attrKey,
   value,
+  spec,
   targetLabel,
   onChange,
   onRemove,
 }: {
   attrKey: string;
   value: ApiAttrValue;
+  spec: AttrSpec | undefined;
   targetLabel: (targetId: string) => string;
   onChange: (v: ApiAttrValue) => void;
   onRemove: () => void;
@@ -210,7 +252,14 @@ function AttributeRow({
   return (
     <div className="rounded-md border px-2 py-1.5">
       <div className="flex items-center justify-between gap-2">
-        <span className="truncate font-mono text-xs">{attrKey}</span>
+        <span className="flex min-w-0 items-center gap-1">
+          {spec?.required && (
+            <span aria-hidden title={t('inspector.required')} className="text-destructive">
+              •
+            </span>
+          )}
+          <span className="truncate font-mono text-xs">{attrKey}</span>
+        </span>
         <button
           onClick={onRemove}
           aria-label={`${t('inspector.remove')}: ${attrKey}`}
@@ -221,7 +270,13 @@ function AttributeRow({
         </button>
       </div>
       {editable ? (
-        <LiteralValueInput attrKey={attrKey} value={value} onChange={onChange} />
+        <LiteralValueInput
+          attrKey={attrKey}
+          value={value}
+          options={spec?.enum}
+          placeholder={spec?.placeholder}
+          onChange={onChange}
+        />
       ) : (
         <div className="mt-1 font-mono text-xs text-muted-foreground">
           {value.kind === 'ref'
@@ -236,17 +291,41 @@ function AttributeRow({
 function LiteralValueInput({
   attrKey,
   value,
+  options,
+  placeholder,
   onChange,
 }: {
   attrKey: string;
   value: ApiAttrValue;
+  options?: string[];
+  placeholder?: string;
   onChange: (v: ApiAttrValue) => void;
 }) {
   const { t } = useTranslation();
   const litType = (value.litType ?? 'string') as LitType;
-  // Hooks must run unconditionally, before the bool early-return.
+  // Hooks must run unconditionally, before the early returns below.
   const raw = value.value ?? '';
   const [draft, setDraft] = useState(raw);
+
+  // A known closed set (string enum) is a select — no free typing, no typos.
+  if (litType === 'string' && options && options.length > 0) {
+    const current = value.value ?? '';
+    return (
+      <select
+        value={current}
+        aria-label={`${attrKey} ${t('inspector.value')}`}
+        onChange={(e) => onChange(literal('string', e.target.value))}
+        className="mt-1 w-full rounded border bg-background px-2 py-1 font-mono text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        {!options.includes(current) && <option value={current}>{current || '—'}</option>}
+        {options.map((o) => (
+          <option key={o} value={o}>
+            {o}
+          </option>
+        ))}
+      </select>
+    );
+  }
 
   if (litType === 'bool') {
     const checked = value.value === 'true';
@@ -280,6 +359,7 @@ function LiteralValueInput({
     <input
       value={draft}
       inputMode={litType === 'number' ? 'decimal' : 'text'}
+      placeholder={placeholder}
       aria-label={`${attrKey} ${t('inspector.value')}`}
       aria-invalid={invalid}
       onChange={(e) => {

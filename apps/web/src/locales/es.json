@@ -87,6 +87,9 @@
     "nestingVisualOnly": "Este anidado solo agrupa en el canvas. {{resource}} abarca varias subredes, así que todavía no generamos un argumento de subred.",
     "attributes": "Atributos",
     "noAttributes": "Sin atributos todavía.",
+    "suggested": "Sugeridos",
+    "custom": "Personalizado",
+    "required": "requerido",
     "key": "clave",
     "type": "Tipo",
     "value": "valor",
@@ -117,6 +120,9 @@
     "container": {
       "nestHint": "Arrastrá recursos acá adentro para anidarlos.",
       "dropToNest": "Soltalo adentro para anidarlo — esa anidación genera la referencia."
+    },
+    "edge": {
+      "reference": "{{from}} referencia a {{to}} vía {{attribute}}"
     }
   },
   "export": {
