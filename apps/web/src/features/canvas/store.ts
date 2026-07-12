@@ -32,11 +32,14 @@ export type ResourceNode = Node<ResourceNodeData>;
  * changing nonce so repeating the same refusal re-shows (and re-times) it. */
 export type Rejection = ConnectionReason & { at: number };
 
-/** The reference data a ruled connection carries on its edge. */
+/** The reference data a ruled connection carries on its edge. `refAttr` is the
+ * referenced attribute; authoring rules only ever produce 'id'/'arn'/'name',
+ * but an imported reference may target any attribute (cidr_block, endpoint, …),
+ * so the edge data holds an open string. */
 interface RefEdgeData extends Record<string, unknown> {
   attribute: string;
   cardinality: 'scalar' | 'list';
-  refAttr: 'id' | 'arn' | 'name';
+  refAttr: string;
 }
 
 /** The node a connection drag is currently starting from, or null. Held so
@@ -123,6 +126,10 @@ interface CanvasActions {
    * doubles as a living regression fixture for the connection/containment
    * rules. */
   loadExample: (id?: string) => void;
+  /** loadImported replaces the canvas with a graph reconstructed from an
+   * imported model (see import.ts + layout.ts). The nodes already carry their
+   * positions from auto-layout; parentsFirst only re-orders and stamps z. */
+  loadImported: (nodes: ResourceNode[], edges: Edge[]) => void;
   /** toApiModel projects the canvas into the generate endpoint's wire shape. */
   toApiModel: () => ApiModel;
 }
@@ -415,6 +422,8 @@ export const useCanvasStore = create<CanvasState & CanvasActions>((set, get) => 
       // requirement) and stamps the fixed z-order.
       return { nodes: parentsFirst(nodes), edges, lastRejection: null };
     }),
+
+  loadImported: (nodes, edges) => set({ nodes: parentsFirst(nodes), edges, lastRejection: null }),
 
   toApiModel: () => {
     const s = get();
