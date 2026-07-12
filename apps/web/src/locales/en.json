@@ -46,6 +46,7 @@
       "aws_security_group": "Security Group",
       "aws_security_group_rule": "SG Rule",
       "aws_iam_role": "IAM Role",
+      "aws_iam_policy": "IAM Policy",
       "aws_iam_instance_profile": "Instance Profile",
       "aws_kms_key": "KMS Key"
     }

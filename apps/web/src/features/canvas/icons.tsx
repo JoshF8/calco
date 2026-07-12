@@ -18,6 +18,7 @@ import {
   Radio,
   Router,
   Server,
+  ScrollText,
   ShieldCheck,
   Split,
   Table2,
@@ -47,6 +48,7 @@ const iconByType: Record<string, LucideIcon> = {
   aws_security_group: ShieldCheck,
   aws_security_group_rule: ListChecks,
   aws_iam_role: KeyRound,
+  aws_iam_policy: ScrollText,
   aws_iam_instance_profile: BadgeCheck,
   aws_kms_key: KeySquare,
 };
