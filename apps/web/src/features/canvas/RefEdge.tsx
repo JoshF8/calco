@@ -1,4 +1,5 @@
 import { BaseEdge, EdgeLabelRenderer, getBezierPath, type EdgeProps } from '@xyflow/react';
+import { useTranslation } from 'react-i18next';
 import { useCanvasStore } from './store';
 
 // The reference edge: a Terraform dependency drawn honestly. The arrowhead
@@ -12,6 +13,7 @@ import { useCanvasStore } from './store';
 export function RefEdge({
   id,
   source,
+  target,
   sourceX,
   sourceY,
   targetX,
@@ -38,6 +40,22 @@ export function RefEdge({
   );
   const label = isList && count > 1 ? `${attribute} · ${count}` : attribute;
 
+  // A plain-language reading of the edge for the audience that doesn't live in
+  // HCL: who references whom, via which argument. Shown on hover so the bare
+  // mono chip stays quiet until asked.
+  const { t } = useTranslation();
+  const nodes = useCanvasStore((s) => s.nodes);
+  const from = nodes.find((n) => n.id === source);
+  const to = nodes.find((n) => n.id === target);
+  const explanation =
+    attribute && from && to
+      ? t('canvas.edge.reference', {
+          from: t(`palette.resource.${from.data.type}`),
+          to: t(`palette.resource.${to.data.type}`),
+          attribute,
+        })
+      : undefined;
+
   return (
     <>
       <BaseEdge id={id} path={path} markerEnd={markerEnd} />
@@ -45,7 +63,9 @@ export function RefEdge({
         <EdgeLabelRenderer>
           <div
             style={{ transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)` }}
-            className="pointer-events-none absolute rounded-sm border border-border bg-card px-1.5 py-0.5 font-mono text-[10px] leading-none text-muted-foreground shadow-sm"
+            title={explanation}
+            aria-label={explanation}
+            className="pointer-events-auto absolute cursor-help rounded-sm border border-border bg-card px-1.5 py-0.5 font-mono text-[10px] leading-none text-muted-foreground shadow-sm"
           >
             {label}
           </div>
