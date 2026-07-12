@@ -2,6 +2,7 @@ import { Handle, Position, type NodeProps } from '@xyflow/react';
 import { useTranslation } from 'react-i18next';
 import type { components } from '@/lib/types.gen';
 import { cn } from '@/lib/utils';
+import { humanType } from './catalog';
 import { connectionRule } from './connection';
 import { ResourceIcon } from './icons';
 import { useCanvasStore } from './store';
@@ -22,7 +23,7 @@ export interface ResourceNodeData extends Record<string, unknown> {
 export function ResourceNode({ id, data, selected }: NodeProps) {
   const { t } = useTranslation();
   const d = data as ResourceNodeData;
-  const label = t(`palette.resource.${d.type}`);
+  const label = t(`palette.resource.${d.type}`, { defaultValue: humanType(d.type) });
 
   const edges = useCanvasStore((s) => s.edges);
   const targetRegistered = edges.some((e) => e.target === id);

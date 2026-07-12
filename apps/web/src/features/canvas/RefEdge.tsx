@@ -1,5 +1,6 @@
 import { BaseEdge, EdgeLabelRenderer, getBezierPath, type EdgeProps } from '@xyflow/react';
 import { useTranslation } from 'react-i18next';
+import { humanType } from './catalog';
 import { useCanvasStore } from './store';
 
 // The reference edge: a Terraform dependency drawn honestly. The arrowhead
@@ -50,8 +51,8 @@ export function RefEdge({
   const explanation =
     attribute && from && to
       ? t('canvas.edge.reference', {
-          from: t(`palette.resource.${from.data.type}`),
-          to: t(`palette.resource.${to.data.type}`),
+          from: t(`palette.resource.${from.data.type}`, { defaultValue: humanType(from.data.type) }),
+          to: t(`palette.resource.${to.data.type}`, { defaultValue: humanType(to.data.type) }),
           attribute,
         })
       : undefined;

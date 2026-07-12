@@ -44,3 +44,17 @@ export function shortType(type: string): string {
   const i = type.indexOf('_');
   return i >= 0 ? type.slice(i + 1) : type;
 }
+
+// Provider prefixes dropped from a fallback label — the rest reads as the
+// resource. Non-provider first segments (null_resource, random_string) are kept.
+const PROVIDER_PREFIXES = new Set(['aws', 'google', 'azurerm', 'azuread', 'kubernetes']);
+
+/** humanType is a readable fallback label for a resource type that has no
+ * curated i18n entry — imported types outside the catalog. It drops a known
+ * provider prefix and title-cases the rest: "aws_security_group_rule" ->
+ * "Security Group Rule", "null_resource" -> "Null Resource". */
+export function humanType(type: string): string {
+  const parts = type.split('_').filter(Boolean);
+  const words = parts.length > 1 && PROVIDER_PREFIXES.has(parts[0]) ? parts.slice(1) : parts;
+  return words.map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ') || type;
+}

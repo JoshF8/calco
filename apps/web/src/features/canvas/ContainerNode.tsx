@@ -1,6 +1,7 @@
 import { NodeResizer, type NodeProps } from '@xyflow/react';
 import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/utils';
+import { humanType } from './catalog';
 import { ResourceIcon } from './icons';
 import { useCanvasStore } from './store';
 import type { ResourceNodeData } from './ResourceNode';
@@ -63,7 +64,7 @@ export function ContainerNode({ id, data, selected }: NodeProps) {
         </span>
         <div className="flex min-w-0 flex-col gap-0.5">
           <span className="truncate text-[10px] font-medium leading-none text-muted-foreground">
-            {t(`palette.resource.${d.type}`)}
+            {t(`palette.resource.${d.type}`, { defaultValue: humanType(d.type) })}
           </span>
           <span className="truncate text-xs font-medium leading-tight text-foreground">{d.name}</span>
           <span className="truncate font-mono text-[10px] leading-none text-muted-foreground">

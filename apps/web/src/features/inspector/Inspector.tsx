@@ -4,6 +4,7 @@ import { Plus, Trash2 } from 'lucide-react';
 import type { components } from '@/lib/types.gen';
 import { Button } from '@/shared/components/ui/button';
 import { useCanvasStore, deriveRefs, type ResourceNode } from '@/features/canvas/store';
+import { humanType } from '@/features/canvas/catalog';
 import { nestRule } from '@/features/canvas/containment';
 import { attrSchema, attrSpec, defaultAttrValue, type AttrSpec } from '@/features/canvas/schema';
 import { isValidName, isValidNumber } from '@/features/canvas/validation';
@@ -94,7 +95,7 @@ function ResourceForm({ node, nodes }: { node: ResourceNode; nodes: ResourceNode
     <div className="flex flex-1 flex-col overflow-y-auto">
       <div className="border-b px-4 py-3">
         <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
-          {t(`palette.resource.${node.data.type}`)}
+          {t(`palette.resource.${node.data.type}`, { defaultValue: humanType(node.data.type) })}
         </div>
         <div className="font-mono text-sm text-muted-foreground">{node.data.type}</div>
       </div>
@@ -132,7 +133,7 @@ function ResourceForm({ node, nodes }: { node: ResourceNode; nodes: ResourceNode
           <p className="mt-1 text-[11px] text-muted-foreground">{t('inspector.containedHint')}</p>
           {nestVisualOnly && (
             <p className="mt-1 text-[11px] text-muted-foreground">
-              {t('inspector.nestingVisualOnly', { resource: t(`palette.resource.${node.data.type}`) })}
+              {t('inspector.nestingVisualOnly', { resource: t(`palette.resource.${node.data.type}`, { defaultValue: humanType(node.data.type) }) })}
             </p>
           )}
         </div>
