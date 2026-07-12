@@ -48,6 +48,7 @@
       "aws_iam_role": "IAM Role",
       "aws_iam_policy": "IAM Policy",
       "aws_iam_instance_profile": "Instance Profile",
+      "aws_iam_role_policy_attachment": "Policy Attachment",
       "aws_kms_key": "KMS Key"
     }
   },

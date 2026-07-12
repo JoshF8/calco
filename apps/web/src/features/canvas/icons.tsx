@@ -11,6 +11,7 @@ import {
   Database,
   Globe,
   KeyRound,
+  Link2,
   KeySquare,
   ListChecks,
   MapPin,
@@ -50,6 +51,7 @@ const iconByType: Record<string, LucideIcon> = {
   aws_iam_role: KeyRound,
   aws_iam_policy: ScrollText,
   aws_iam_instance_profile: BadgeCheck,
+  aws_iam_role_policy_attachment: Link2,
   aws_kms_key: KeySquare,
 };
 

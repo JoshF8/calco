@@ -34,6 +34,7 @@ export const catalog: CatalogEntry[] = [
   { type: 'aws_iam_role', group: 'security' },
   { type: 'aws_iam_policy', group: 'security' },
   { type: 'aws_iam_instance_profile', group: 'security' },
+  { type: 'aws_iam_role_policy_attachment', group: 'security' },
   { type: 'aws_kms_key', group: 'security' },
 ];
 
