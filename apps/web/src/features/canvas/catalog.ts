@@ -19,6 +19,7 @@ export const catalog: CatalogEntry[] = [
   { type: 'aws_internet_gateway', group: 'network' },
   { type: 'aws_lb_listener', group: 'network' },
   { type: 'aws_lb', group: 'network' },
+  { type: 'aws_cloudfront_distribution', group: 'network' },
   { type: 'aws_lb_target_group', group: 'network' },
   { type: 'aws_nat_gateway', group: 'network' },
   { type: 'aws_route53_record', group: 'network' },

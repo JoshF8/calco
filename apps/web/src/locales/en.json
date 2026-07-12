@@ -33,6 +33,7 @@
       "aws_internet_gateway": "Internet Gateway",
       "aws_lb_listener": "LB Listener",
       "aws_lb": "Load Balancer",
+      "aws_cloudfront_distribution": "CloudFront",
       "aws_lb_target_group": "Target Group",
       "aws_nat_gateway": "NAT Gateway",
       "aws_route53_record": "Route 53 Record",
