@@ -108,6 +108,32 @@ const schemas: Record<string, AttrSpec[]> = {
     { name: 'deletion_window_in_days', type: 'number', placeholder: '30' },
     { name: 'enable_key_rotation', type: 'bool' },
   ],
+  aws_security_group_rule: [
+    { name: 'type', type: 'string', required: true, enum: ['ingress', 'egress'] },
+    { name: 'from_port', type: 'number', required: true, placeholder: '443' },
+    { name: 'to_port', type: 'number', required: true, placeholder: '443' },
+    { name: 'protocol', type: 'string', required: true, enum: ['tcp', 'udp', 'icmp', '-1'] },
+    { name: 'description', type: 'string' },
+  ],
+  aws_iam_policy: [
+    { name: 'name', type: 'string', placeholder: 'app-policy' },
+    { name: 'description', type: 'string' },
+  ],
+  aws_key_pair: [
+    { name: 'key_name', type: 'string', required: true, placeholder: 'deployer' },
+    { name: 'public_key', type: 'string', placeholder: 'ssh-ed25519 AAAA…' },
+  ],
+  aws_route53_record: [
+    { name: 'name', type: 'string', required: true, placeholder: 'www.example.com' },
+    { name: 'type', type: 'string', required: true, enum: ['A', 'AAAA', 'CNAME', 'MX', 'TXT', 'NS', 'SRV'] },
+    { name: 'ttl', type: 'number', placeholder: '300' },
+  ],
+  aws_cloudfront_distribution: [
+    { name: 'enabled', type: 'bool', required: true },
+    { name: 'comment', type: 'string' },
+    { name: 'price_class', type: 'string', enum: ['PriceClass_All', 'PriceClass_200', 'PriceClass_100'] },
+    { name: 'default_root_object', type: 'string', placeholder: 'index.html' },
+  ],
 };
 
 /** The resource types that have a curated schema. Exported for the consistency
