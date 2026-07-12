@@ -140,6 +140,19 @@
     "errorPrefix": "Error",
     "filesLabel": "Generated files"
   },
+  "import": {
+    "button": "Import",
+    "title": "Import Terraform",
+    "hint": "Paste your Terraform or add .tf files. calco draws it; editing and re-exporting regenerates clean HCL — not the original formatting.",
+    "paste": "Paste .tf here…",
+    "addFiles": "Add .tf files",
+    "action": "Import",
+    "cancel": "Cancel",
+    "done": "Show on canvas",
+    "errorPrefix": "Couldn't parse the Terraform",
+    "summary": "{{resources}} resources imported · {{skipped}} not shown",
+    "notShown": "Not shown"
+  },
   "footer": {
     "copyright": "© {{year}} Joshua Franco · Apache 2.0"
   }

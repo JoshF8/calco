@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Languages, Moon, Sun } from 'lucide-react';
+import { FileUp, Languages, Moon, Sun } from 'lucide-react';
 import { Button } from '@/shared/components/ui/button';
 import { Canvas } from '@/features/canvas/Canvas';
 import { Palette } from '@/features/canvas/Palette';
 import { RightPanel } from '@/features/inspector/RightPanel';
+import { ImportDialog } from '@/features/import-flow/ImportPanel';
 
 function useTheme() {
   const [isDark, setIsDark] = useState<boolean>(() =>
@@ -35,6 +36,7 @@ function SymbolMark({ className }: { className?: string }) {
 export default function App() {
   const { t, i18n } = useTranslation();
   const [isDark, setIsDark] = useTheme();
+  const [importOpen, setImportOpen] = useState(false);
 
   const toggleLang = () => {
     const next = i18n.language.startsWith('es') ? 'en' : 'es';
@@ -50,6 +52,10 @@ export default function App() {
           <span className="ml-2 hidden text-xs text-muted-foreground sm:inline">{t('app.tagline')}</span>
         </div>
         <div className="flex items-center gap-1">
+          <Button variant="outline" size="sm" onClick={() => setImportOpen(true)}>
+            <FileUp className="h-4 w-4" />
+            {t('import.button')}
+          </Button>
           <Button variant="ghost" size="icon" onClick={toggleLang} aria-label={t('language.switch')} title={t('language.switch')}>
             <Languages className="h-4 w-4" />
           </Button>
@@ -66,6 +72,8 @@ export default function App() {
         </main>
         <RightPanel />
       </div>
+
+      {importOpen && <ImportDialog onClose={() => setImportOpen(false)} />}
     </div>
   );
 }
