@@ -4,7 +4,14 @@
 // Display labels are NOT stored here: they are i18n keys resolved at render
 // time (palette.resource.<type> and palette.group.<group>), so switching
 // language updates the palette and the node badges live.
-export type GroupKey = 'network' | 'compute' | 'storage' | 'database' | 'security';
+export type GroupKey =
+  | 'network'
+  | 'compute'
+  | 'storage'
+  | 'database'
+  | 'messaging'
+  | 'observability'
+  | 'security';
 
 export interface CatalogEntry {
   /** Terraform resource type, e.g. "aws_vpc". Also the i18n label key suffix. */
@@ -24,14 +31,27 @@ export const catalog: CatalogEntry[] = [
   { type: 'aws_nat_gateway', group: 'network' },
   { type: 'aws_route53_record', group: 'network' },
   { type: 'aws_eip', group: 'network' },
+  { type: 'aws_api_gateway_rest_api', group: 'network' },
+  { type: 'aws_apigatewayv2_api', group: 'network' },
   { type: 'aws_instance', group: 'compute' },
   { type: 'aws_key_pair', group: 'compute' },
   { type: 'aws_lambda_function', group: 'compute' },
+  { type: 'aws_ecs_cluster', group: 'compute' },
+  { type: 'aws_ecs_service', group: 'compute' },
+  { type: 'aws_ecs_task_definition', group: 'compute' },
   { type: 'aws_s3_bucket', group: 'storage' },
   { type: 'aws_ecr_repository', group: 'storage' },
+  { type: 'aws_efs_file_system', group: 'storage' },
+  { type: 'aws_efs_mount_target', group: 'storage' },
   { type: 'aws_db_instance', group: 'database' },
   { type: 'aws_dynamodb_table', group: 'database' },
   { type: 'aws_db_subnet_group', group: 'database' },
+  { type: 'aws_sns_topic', group: 'messaging' },
+  { type: 'aws_sqs_queue', group: 'messaging' },
+  { type: 'aws_sns_topic_subscription', group: 'messaging' },
+  { type: 'aws_cloudwatch_log_group', group: 'observability' },
+  { type: 'aws_cloudwatch_metric_alarm', group: 'observability' },
+  { type: 'aws_cloudwatch_event_rule', group: 'observability' },
   { type: 'aws_security_group', group: 'security' },
   { type: 'aws_security_group_rule', group: 'security' },
   { type: 'aws_iam_role', group: 'security' },
@@ -42,7 +62,15 @@ export const catalog: CatalogEntry[] = [
 ];
 
 /** The order groups are shown in the palette. */
-export const groupOrder: GroupKey[] = ['network', 'compute', 'storage', 'database', 'security'];
+export const groupOrder: GroupKey[] = [
+  'network',
+  'compute',
+  'storage',
+  'database',
+  'messaging',
+  'observability',
+  'security',
+];
 
 /** shortType strips the provider prefix: "aws_vpc" -> "vpc". Used to derive
  * default resource names. */

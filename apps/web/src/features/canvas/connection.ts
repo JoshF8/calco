@@ -49,6 +49,11 @@ const rules: ConnectionRule[] = [
   { from: 'aws_instance', to: 'aws_iam_instance_profile', attribute: 'iam_instance_profile', cardinality: 'scalar', refAttr: 'name' },
   { from: 'aws_db_instance', to: 'aws_kms_key', attribute: 'kms_key_id', cardinality: 'scalar', refAttr: 'arn' },
   { from: 'aws_nat_gateway', to: 'aws_eip', attribute: 'allocation_id', cardinality: 'scalar', refAttr: 'id' },
+  { from: 'aws_ecs_service', to: 'aws_ecs_cluster', attribute: 'cluster', cardinality: 'scalar', refAttr: 'arn' },
+  { from: 'aws_ecs_service', to: 'aws_ecs_task_definition', attribute: 'task_definition', cardinality: 'scalar', refAttr: 'arn' },
+  { from: 'aws_sns_topic_subscription', to: 'aws_sns_topic', attribute: 'topic_arn', cardinality: 'scalar', refAttr: 'arn' },
+  { from: 'aws_sns_topic_subscription', to: 'aws_sqs_queue', attribute: 'endpoint', cardinality: 'scalar', refAttr: 'arn' },
+  { from: 'aws_efs_mount_target', to: 'aws_efs_file_system', attribute: 'file_system_id', cardinality: 'scalar', refAttr: 'id' },
 ];
 
 /** connectionRule returns the rule for a pair in either drag order, with its

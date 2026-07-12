@@ -3,31 +3,44 @@
 // type not in the map falls back to a neutral box.
 import type { ComponentType } from 'react';
 import {
+  Anchor,
   Archive,
   BadgeCheck,
+  Bell,
   Box,
-  Cloud,
   Boxes,
+  ClipboardList,
+  Cloud,
   Container,
   Database,
+  FileText,
+  Gauge,
   Globe,
+  HardDrive,
+  Inbox,
   Key,
   KeyRound,
-  Link2,
   KeySquare,
+  Layers,
+  Link2,
   ListChecks,
   MapPin,
+  Megaphone,
   Network,
   Radio,
+  Route,
   Router,
-  Server,
+  Rss,
   ScrollText,
+  Server,
   ShieldCheck,
-  Split,
+  Ship,
   Signpost,
+  Split,
   Table2,
   Target,
   Waypoints,
+  Webhook,
   Zap,
 } from 'lucide-react';
 
@@ -59,6 +72,24 @@ const iconByType: Record<string, LucideIcon> = {
   aws_iam_instance_profile: BadgeCheck,
   aws_iam_role_policy_attachment: Link2,
   aws_kms_key: KeySquare,
+  // ECS
+  aws_ecs_cluster: Ship,
+  aws_ecs_service: Layers,
+  aws_ecs_task_definition: ClipboardList,
+  // API Gateway
+  aws_api_gateway_rest_api: Webhook,
+  aws_apigatewayv2_api: Route,
+  // EFS
+  aws_efs_file_system: HardDrive,
+  aws_efs_mount_target: Anchor,
+  // Messaging
+  aws_sns_topic: Megaphone,
+  aws_sqs_queue: Inbox,
+  aws_sns_topic_subscription: Rss,
+  // Observability
+  aws_cloudwatch_log_group: FileText,
+  aws_cloudwatch_metric_alarm: Gauge,
+  aws_cloudwatch_event_rule: Bell,
 };
 
 /** Renders the icon for a resource type. */
