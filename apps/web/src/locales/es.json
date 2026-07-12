@@ -44,6 +44,7 @@
       "aws_dynamodb_table": "Tabla DynamoDB",
       "aws_db_subnet_group": "Grupo de Subredes DB",
       "aws_security_group": "Security Group",
+      "aws_security_group_rule": "Regla de SG",
       "aws_iam_role": "Rol IAM",
       "aws_iam_instance_profile": "Perfil de Instancia",
       "aws_kms_key": "Clave KMS"

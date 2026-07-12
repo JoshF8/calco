@@ -30,6 +30,7 @@ export const catalog: CatalogEntry[] = [
   { type: 'aws_dynamodb_table', group: 'database' },
   { type: 'aws_db_subnet_group', group: 'database' },
   { type: 'aws_security_group', group: 'security' },
+  { type: 'aws_security_group_rule', group: 'security' },
   { type: 'aws_iam_role', group: 'security' },
   { type: 'aws_iam_instance_profile', group: 'security' },
   { type: 'aws_kms_key', group: 'security' },
