@@ -14,17 +14,28 @@ import type { ResourceNode } from './store';
 import { isContainer } from './containment';
 
 // Default size fed to ELK for a leaf node before React Flow has measured the
-// real DOM. Close to the rendered emblem so containers are sized about right;
-// React Flow re-measures after paint.
-const LEAF = { width: 184, height: 76 };
+// real DOM — sized to the rendered emblem (min-w 196 / max-w 264, three text
+// lines) so containers come back big enough; React Flow re-measures after paint.
+const LEAF = { width: 224, height: 92 };
+
+// Container inner padding, with extra room at the top for the box's own header
+// (icon + label + address, ~44px).
+const CONTAINER_PADDING = '[top=44,left=18,bottom=18,right=18]';
 
 const GRAPH_OPTIONS: Record<string, string> = {
   'elk.algorithm': 'layered',
-  'elk.direction': 'RIGHT',
+  // Edges attach to the source's bottom handle and the target's top handle, so
+  // the graph must flow top-to-bottom for a reference to read as a clean
+  // downward line (dependent above dependency) instead of a sideways curl.
+  'elk.direction': 'DOWN',
   'elk.hierarchyHandling': 'INCLUDE_CHILDREN', // lay out across container boundaries
-  'elk.layered.spacing.nodeNodeBetweenLayers': '64',
-  'elk.spacing.nodeNode': '40',
-  'elk.padding': '[top=48,left=20,bottom=20,right=20]', // room for the container header
+  // Keep siblings near their input order so the layout is stable and legible
+  // rather than reshuffled on every import.
+  'elk.layered.considerModelOrder.strategy': 'NODES_AND_EDGES',
+  'elk.layered.spacing.nodeNodeBetweenLayers': '84',
+  'elk.spacing.nodeNode': '48',
+  'elk.spacing.edgeNode': '28',
+  'elk.padding': CONTAINER_PADDING,
 };
 
 /** layout assigns positions (and container sizes) to imported nodes with ELK,
@@ -46,7 +57,7 @@ export async function layout(nodes: ResourceNode[], edges: Edge[]): Promise<Reso
   const toElk = (n: ResourceNode): ElkNode => {
     const kids = childrenOf.get(n.id) ?? [];
     if (isBox(n)) {
-      return { id: n.id, children: kids.map(toElk), layoutOptions: { 'elk.padding': GRAPH_OPTIONS['elk.padding'] } };
+      return { id: n.id, children: kids.map(toElk), layoutOptions: { 'elk.padding': CONTAINER_PADDING } };
     }
     return { id: n.id, width: LEAF.width, height: LEAF.height };
   };
