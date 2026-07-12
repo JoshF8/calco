@@ -158,6 +158,21 @@ func convertExpr(expr hclsyntax.Expression, src []byte, index map[string]graph.R
 	switch e := expr.(type) {
 	case *hclsyntax.ScopeTraversalExpr:
 		return convertTraversal(e.Traversal, index)
+	case *hclsyntax.TemplateWrapExpr:
+		// A template that is exactly one interpolation, e.g.
+		// "${aws_vpc.main.id}" — the Terraform 0.11-era reference style. Unwrap
+		// and convert the inner expression (usually a traversal).
+		return convertExpr(e.Wrapped, src, index)
+	case *hclsyntax.TemplateExpr:
+		// A quoted string. A single-part template is either a plain literal
+		// ("t2.micro") or a lone interpolation ("${aws_vpc.main.id}"); convert
+		// the sole part so the old quoted-reference style still resolves. A
+		// multi-part template concatenates literal text and interpolations
+		// (e.g. "prefix-${x}"), which the flat model cannot represent.
+		if len(e.Parts) == 1 {
+			return convertExpr(e.Parts[0], src, index)
+		}
+		return graph.AttrValue{}, &Diagnostic{Reason: "interpolated string with multiple parts is not representable"}
 	case *hclsyntax.TupleConsExpr:
 		items := make([]graph.AttrValue, 0, len(e.Exprs))
 		for _, sub := range e.Exprs {

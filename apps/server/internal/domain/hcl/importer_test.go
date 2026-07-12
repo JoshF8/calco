@@ -89,6 +89,37 @@ resource "aws_instance" "web" {
 	}
 }
 
+func TestImportResolvesInterpolationStyleReferences(t *testing.T) {
+	// Terraform 0.11-era quoted-interpolation reference style, still common in
+	// the wild. Both the scalar and list forms must resolve to real refs.
+	src := `
+resource "aws_security_group" "sg" {}
+resource "aws_subnet" "a" {}
+resource "aws_instance" "web" {
+  subnet_id              = "${aws_subnet.a.id}"
+  vpc_security_group_ids = ["${aws_security_group.sg.id}"]
+}
+`
+	m, diags, err := Import(map[string]string{"main.tf": src})
+	if err != nil {
+		t.Fatalf("import: %v", err)
+	}
+	if len(diags) != 0 {
+		t.Fatalf("unexpected diagnostics: %+v", diags)
+	}
+	web := findAddr(t, m, "aws_instance", "web")
+	sub := findAddr(t, m, "aws_subnet", "a")
+	sg := findAddr(t, m, "aws_security_group", "sg")
+
+	if got := web.Attributes["subnet_id"]; got.Kind != graph.KindRef || got.RefTarget != sub.ID {
+		t.Errorf("subnet_id (scalar interpolation) = %+v", got)
+	}
+	list := web.Attributes["vpc_security_group_ids"]
+	if list.Kind != graph.KindList || len(list.Items) != 1 || list.Items[0].RefTarget != sg.ID {
+		t.Errorf("vpc_security_group_ids (list interpolation) = %+v", list)
+	}
+}
+
 func TestImportReferencesResolveAcrossFiles(t *testing.T) {
 	files := map[string]string{
 		"network.tf": `resource "aws_vpc" "main" { cidr_block = "10.0.0.0/16" }`,
