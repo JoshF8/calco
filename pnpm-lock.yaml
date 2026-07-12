@@ -28,6 +28,9 @@ importers:
       clsx:
         specifier: 2.1.1
         version: 2.1.1
+      elkjs:
+        specifier: 0.11.1
+        version: 0.11.1
       i18next:
         specifier: 26.2.0
         version: 26.2.0(typescript@6.0.3)
@@ -891,6 +894,9 @@ packages:
 
   electron-to-chromium@1.5.361:
     resolution: {integrity: sha512-Q6Hts7N9FnJc5LeGRINFvLhCI9xZmNtTDe5ZbcVezQz7cU4a8Aua3GH1b8J2XY8Al9PF+OCwYqhgsOOheMdvkA==}
+
+  elkjs@0.11.1:
+    resolution: {integrity: sha512-zxxR9k+rx5ktMwT/FwyLdPCrq7xN6e4VGGHH8hA01vVYKjTFik7nHOxBnAYtrgYUB1RpAiLvA1/U2YraWxyKKg==}
 
   enhanced-resolve@5.22.0:
     resolution: {integrity: sha512-xYcDWrpELkFzz9SpZ3PlI6Eu6eD93Yf0WLDRxikGhWJ3MAir2SNZTIVCVZqZ/NUyx8AdMc2gT9C0gPiw18kG+A==}
@@ -2448,6 +2454,8 @@ snapshots:
   detect-libc@2.1.2: {}
 
   electron-to-chromium@1.5.361: {}
+
+  elkjs@0.11.1: {}
 
   enhanced-resolve@5.22.0:
     dependencies:
