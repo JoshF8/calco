@@ -109,7 +109,8 @@
       "loadBalanced": { "name": "Load-balanced app", "desc": "Load balancer with target group and listener, over two instances" },
       "database": { "name": "Database (RDS)", "desc": "RDS with a subnet group, a security group and a KMS key" },
       "compute": { "name": "Secured EC2", "desc": "An EC2 instance assuming an IAM role via an instance profile" },
-      "serverless": { "name": "Serverless", "desc": "Lambda with an IAM role, plus DynamoDB, S3 and ECR" }
+      "serverless": { "name": "Serverless", "desc": "Lambda with an IAM role, plus DynamoDB, S3 and ECR" },
+      "threeTier": { "name": "Three-tier stack", "desc": "Public/private subnets, a load balancer, EC2 with an IAM role, a NAT gateway and an encrypted RDS" }
     },
     "coach": {
       "connect": "Drag from a resource's dot to another to connect them."

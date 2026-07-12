@@ -1,13 +1,14 @@
 // Ready-made example graphs for the empty canvas. Each example is a small but
 // real AWS architecture built only from the current catalog, so loading one is
 // both a starting point and a live demonstration of the connection and
-// containment rules — every edge here is one a user could draw by hand.
+// containment rules — every edge here is one a user could draw by hand, and
+// every literal attribute one they could pick from the Inspector's suggestions.
 //
 // Metadata (name, description) is NOT stored here: it is resolved at render
 // time from i18n keys canvas.example.<id>.name / .desc, so the picker follows
 // the language like the rest of the canvas.
 import { MarkerType, type Edge } from '@xyflow/react';
-import type { ResourceNode } from './store';
+import type { ResourceNode, ApiAttrValue } from './store';
 import { connectionRule } from './connection';
 import { isContainer } from './containment';
 
@@ -21,23 +22,34 @@ interface Size {
   height: number;
 }
 
+// A JS primitive → the tagged literal AttrValue the model stores. Numbers keep
+// their canonical text; booleans become "true"/"false"; everything else is a
+// string. Attribute names must be curated (schema.ts) and never gesture-owned
+// (vpc_id, subnet_id, vpc_security_group_ids, …) — the examples test guards it.
+function lit(v: string | number | boolean): ApiAttrValue {
+  if (typeof v === 'boolean') return { kind: 'literal', litType: 'bool', value: String(v) };
+  if (typeof v === 'number') return { kind: 'literal', litType: 'number', value: String(v) };
+  return { kind: 'literal', litType: 'string', value: v };
+}
+
 // mk builds a node. Containers carry an explicit size; nested nodes carry a
-// parentId and a parent-relative position — React Flow's model, mirrored by the
-// store. The containment reference (vpc_id / subnet_id) is derived from
-// parentId at projection time, exactly as an interactive nest would be.
+// parentId and a parent-relative position. `attrs` seeds literal arguments (the
+// values the Inspector would suggest), keyed by real HCL argument name.
 function mk(
   type: string,
   name: string,
   position: { x: number; y: number },
-  opts: { size?: Size; parentId?: string } = {},
+  opts: { size?: Size; parentId?: string; attrs?: Record<string, string | number | boolean> } = {},
 ): ResourceNode {
+  const attributes: Record<string, ApiAttrValue> = {};
+  for (const [k, v] of Object.entries(opts.attrs ?? {})) attributes[k] = lit(v);
   return {
     id: crypto.randomUUID(),
     type: isContainer(type) ? 'container' : 'resource',
     position,
     ...(opts.size ?? {}),
     ...(opts.parentId ? { parentId: opts.parentId } : {}),
-    data: { type, name, attributes: {} },
+    data: { type, name, attributes },
   };
 }
 
@@ -66,40 +78,88 @@ function connect(a: ResourceNode, b: ResourceNode): Edge {
 // security group both reference. The canonical starter (kept as the default
 // example) — the smallest graph that shows nesting + a list reference.
 function web(): Built {
-  const vpc = mk('aws_vpc', 'vpc_1', { x: 80, y: 60 }, { size: { width: 560, height: 340 } });
-  const sub1 = mk('aws_subnet', 'subnet_1', { x: 16, y: 52 }, { size: { width: 250, height: 190 }, parentId: vpc.id });
-  const sub2 = mk('aws_subnet', 'subnet_2', { x: 288, y: 52 }, { size: { width: 250, height: 190 }, parentId: vpc.id });
-  const sg = mk('aws_security_group', 'security_group_1', { x: 20, y: 262 }, { parentId: vpc.id });
-  const i1 = mk('aws_instance', 'instance_1', { x: 18, y: 64 }, { parentId: sub1.id });
-  const i2 = mk('aws_instance', 'instance_2', { x: 18, y: 64 }, { parentId: sub2.id });
+  const vpc = mk('aws_vpc', 'vpc_1', { x: 80, y: 60 }, {
+    size: { width: 560, height: 340 },
+    attrs: { cidr_block: '10.0.0.0/16', enable_dns_support: true, enable_dns_hostnames: true },
+  });
+  const sub1 = mk('aws_subnet', 'subnet_1', { x: 16, y: 52 }, {
+    size: { width: 250, height: 190 }, parentId: vpc.id,
+    attrs: { cidr_block: '10.0.1.0/24', availability_zone: 'us-east-1a' },
+  });
+  const sub2 = mk('aws_subnet', 'subnet_2', { x: 288, y: 52 }, {
+    size: { width: 250, height: 190 }, parentId: vpc.id,
+    attrs: { cidr_block: '10.0.2.0/24', availability_zone: 'us-east-1b' },
+  });
+  const sg = mk('aws_security_group', 'security_group_1', { x: 20, y: 262 }, {
+    parentId: vpc.id, attrs: { name: 'web', description: 'Web tier' },
+  });
+  const i1 = mk('aws_instance', 'instance_1', { x: 18, y: 64 }, {
+    parentId: sub1.id, attrs: { ami: 'ami-0abcd1234', instance_type: 't3.micro' },
+  });
+  const i2 = mk('aws_instance', 'instance_2', { x: 18, y: 64 }, {
+    parentId: sub2.id, attrs: { ami: 'ami-0abcd1234', instance_type: 't3.micro' },
+  });
   return { nodes: [vpc, sub1, sub2, sg, i1, i2], edges: [connect(i1, sg), connect(i2, sg)] };
 }
 
 // Network foundation: a VPC with a public and a private subnet, an internet
 // gateway, and a NAT gateway drawing its address from an Elastic IP.
 function network(): Built {
-  const vpc = mk('aws_vpc', 'vpc_1', { x: 80, y: 60 }, { size: { width: 700, height: 430 } });
-  const pub = mk('aws_subnet', 'public', { x: 24, y: 56 }, { size: { width: 300, height: 210 }, parentId: vpc.id });
-  const priv = mk('aws_subnet', 'private', { x: 360, y: 56 }, { size: { width: 300, height: 210 }, parentId: vpc.id });
+  const vpc = mk('aws_vpc', 'vpc_1', { x: 80, y: 60 }, {
+    size: { width: 700, height: 430 },
+    attrs: { cidr_block: '10.0.0.0/16', enable_dns_support: true },
+  });
+  const pub = mk('aws_subnet', 'public', { x: 24, y: 56 }, {
+    size: { width: 300, height: 210 }, parentId: vpc.id,
+    attrs: { cidr_block: '10.0.1.0/24', availability_zone: 'us-east-1a', map_public_ip_on_launch: true },
+  });
+  const priv = mk('aws_subnet', 'private', { x: 360, y: 56 }, {
+    size: { width: 300, height: 210 }, parentId: vpc.id,
+    attrs: { cidr_block: '10.0.2.0/24', availability_zone: 'us-east-1b' },
+  });
   const igw = mk('aws_internet_gateway', 'igw_1', { x: 24, y: 300 }, { parentId: vpc.id });
-  const sg = mk('aws_security_group', 'security_group_1', { x: 360, y: 300 }, { parentId: vpc.id });
-  const nat = mk('aws_nat_gateway', 'nat_1', { x: 20, y: 70 }, { parentId: pub.id });
-  const eip = mk('aws_eip', 'nat_eip', { x: 840, y: 120 });
+  const sg = mk('aws_security_group', 'security_group_1', { x: 360, y: 300 }, {
+    parentId: vpc.id, attrs: { name: 'default', description: 'Baseline' },
+  });
+  const nat = mk('aws_nat_gateway', 'nat_1', { x: 20, y: 70 }, {
+    parentId: pub.id, attrs: { connectivity_type: 'public' },
+  });
+  const eip = mk('aws_eip', 'nat_eip', { x: 840, y: 120 }, { attrs: { domain: 'vpc' } });
   return { nodes: [vpc, pub, priv, igw, sg, nat, eip], edges: [connect(nat, eip)] };
 }
 
 // Load-balanced app: a load balancer with its target group and listener, in
 // front of two instances behind a security group.
 function loadBalanced(): Built {
-  const vpc = mk('aws_vpc', 'vpc_1', { x: 80, y: 120 }, { size: { width: 720, height: 470 } });
-  const subA = mk('aws_subnet', 'subnet_a', { x: 24, y: 56 }, { size: { width: 310, height: 220 }, parentId: vpc.id });
-  const subB = mk('aws_subnet', 'subnet_b', { x: 366, y: 56 }, { size: { width: 310, height: 220 }, parentId: vpc.id });
-  const i1 = mk('aws_instance', 'web_1', { x: 18, y: 70 }, { parentId: subA.id });
-  const i2 = mk('aws_instance', 'web_2', { x: 18, y: 70 }, { parentId: subB.id });
-  const sg = mk('aws_security_group', 'web_sg', { x: 24, y: 320 }, { parentId: vpc.id });
-  const tg = mk('aws_lb_target_group', 'web_tg', { x: 366, y: 320 }, { parentId: vpc.id });
-  const lb = mk('aws_lb', 'web_lb', { x: 880, y: 160 });
-  const listener = mk('aws_lb_listener', 'https', { x: 880, y: 300 });
+  const vpc = mk('aws_vpc', 'vpc_1', { x: 80, y: 120 }, {
+    size: { width: 720, height: 470 }, attrs: { cidr_block: '10.0.0.0/16' },
+  });
+  const subA = mk('aws_subnet', 'subnet_a', { x: 24, y: 56 }, {
+    size: { width: 310, height: 220 }, parentId: vpc.id,
+    attrs: { cidr_block: '10.0.1.0/24', availability_zone: 'us-east-1a', map_public_ip_on_launch: true },
+  });
+  const subB = mk('aws_subnet', 'subnet_b', { x: 366, y: 56 }, {
+    size: { width: 310, height: 220 }, parentId: vpc.id,
+    attrs: { cidr_block: '10.0.2.0/24', availability_zone: 'us-east-1b', map_public_ip_on_launch: true },
+  });
+  const i1 = mk('aws_instance', 'web_1', { x: 18, y: 70 }, {
+    parentId: subA.id, attrs: { ami: 'ami-0abcd1234', instance_type: 't3.small' },
+  });
+  const i2 = mk('aws_instance', 'web_2', { x: 18, y: 70 }, {
+    parentId: subB.id, attrs: { ami: 'ami-0abcd1234', instance_type: 't3.small' },
+  });
+  const sg = mk('aws_security_group', 'web_sg', { x: 24, y: 320 }, {
+    parentId: vpc.id, attrs: { name: 'web', description: 'HTTP/HTTPS' },
+  });
+  const tg = mk('aws_lb_target_group', 'web_tg', { x: 366, y: 320 }, {
+    parentId: vpc.id, attrs: { name: 'web-tg', port: 80, protocol: 'HTTP', target_type: 'instance' },
+  });
+  const lb = mk('aws_lb', 'web_lb', { x: 880, y: 160 }, {
+    attrs: { name: 'web-alb', internal: false, load_balancer_type: 'application' },
+  });
+  const listener = mk('aws_lb_listener', 'https', { x: 880, y: 300 }, {
+    attrs: { port: 443, protocol: 'HTTPS' },
+  });
   return {
     nodes: [vpc, subA, subB, i1, i2, sg, tg, lb, listener],
     edges: [connect(i1, sg), connect(i2, sg), connect(listener, lb)],
@@ -109,13 +169,32 @@ function loadBalanced(): Built {
 // Database: an RDS instance wired to its subnet group (spanning two subnets),
 // a security group, and a KMS key for encryption at rest.
 function database(): Built {
-  const vpc = mk('aws_vpc', 'vpc_1', { x: 80, y: 80 }, { size: { width: 660, height: 410 } });
-  const subA = mk('aws_subnet', 'db_a', { x: 24, y: 56 }, { size: { width: 290, height: 200 }, parentId: vpc.id });
-  const subB = mk('aws_subnet', 'db_b', { x: 346, y: 56 }, { size: { width: 290, height: 200 }, parentId: vpc.id });
-  const sg = mk('aws_security_group', 'db_sg', { x: 24, y: 290 }, { parentId: vpc.id });
-  const dbsg = mk('aws_db_subnet_group', 'db_subnets', { x: 800, y: 100 });
-  const db = mk('aws_db_instance', 'postgres', { x: 800, y: 240 });
-  const kms = mk('aws_kms_key', 'db_key', { x: 800, y: 380 });
+  const vpc = mk('aws_vpc', 'vpc_1', { x: 80, y: 80 }, {
+    size: { width: 660, height: 410 }, attrs: { cidr_block: '10.0.0.0/16' },
+  });
+  const subA = mk('aws_subnet', 'db_a', { x: 24, y: 56 }, {
+    size: { width: 290, height: 200 }, parentId: vpc.id,
+    attrs: { cidr_block: '10.0.11.0/24', availability_zone: 'us-east-1a' },
+  });
+  const subB = mk('aws_subnet', 'db_b', { x: 346, y: 56 }, {
+    size: { width: 290, height: 200 }, parentId: vpc.id,
+    attrs: { cidr_block: '10.0.12.0/24', availability_zone: 'us-east-1b' },
+  });
+  const sg = mk('aws_security_group', 'db_sg', { x: 24, y: 290 }, {
+    parentId: vpc.id, attrs: { name: 'db', description: 'Postgres from app tier' },
+  });
+  const dbsg = mk('aws_db_subnet_group', 'db_subnets', { x: 800, y: 100 }, {
+    attrs: { name: 'db-subnets' },
+  });
+  const db = mk('aws_db_instance', 'postgres', { x: 800, y: 240 }, {
+    attrs: {
+      engine: 'postgres', engine_version: '16', instance_class: 'db.t3.micro',
+      allocated_storage: 20, db_name: 'appdb', username: 'app',
+    },
+  });
+  const kms = mk('aws_kms_key', 'db_key', { x: 800, y: 380 }, {
+    attrs: { description: 'RDS encryption at rest', enable_key_rotation: true, deletion_window_in_days: 30 },
+  });
   return {
     nodes: [vpc, subA, subB, sg, dbsg, db, kms],
     edges: [connect(dbsg, subA), connect(dbsg, subB), connect(db, dbsg), connect(db, sg), connect(db, kms)],
@@ -125,12 +204,23 @@ function database(): Built {
 // Secured EC2: an instance that assumes an IAM role through an instance
 // profile — the chain that lets EC2 reference a role at all.
 function compute(): Built {
-  const vpc = mk('aws_vpc', 'vpc_1', { x: 80, y: 80 }, { size: { width: 520, height: 360 } });
-  const sub = mk('aws_subnet', 'app', { x: 24, y: 56 }, { size: { width: 300, height: 210 }, parentId: vpc.id });
-  const inst = mk('aws_instance', 'app_1', { x: 18, y: 70 }, { parentId: sub.id });
-  const sg = mk('aws_security_group', 'app_sg', { x: 24, y: 290 }, { parentId: vpc.id });
-  const profile = mk('aws_iam_instance_profile', 'app_profile', { x: 660, y: 120 });
-  const role = mk('aws_iam_role', 'app_role', { x: 660, y: 260 });
+  const vpc = mk('aws_vpc', 'vpc_1', { x: 80, y: 80 }, {
+    size: { width: 520, height: 360 }, attrs: { cidr_block: '10.0.0.0/16' },
+  });
+  const sub = mk('aws_subnet', 'app', { x: 24, y: 56 }, {
+    size: { width: 300, height: 210 }, parentId: vpc.id,
+    attrs: { cidr_block: '10.0.1.0/24', availability_zone: 'us-east-1a' },
+  });
+  const inst = mk('aws_instance', 'app_1', { x: 18, y: 70 }, {
+    parentId: sub.id, attrs: { ami: 'ami-0abcd1234', instance_type: 't3.micro', monitoring: true },
+  });
+  const sg = mk('aws_security_group', 'app_sg', { x: 24, y: 290 }, {
+    parentId: vpc.id, attrs: { name: 'app' },
+  });
+  const profile = mk('aws_iam_instance_profile', 'app_profile', { x: 660, y: 120 }, {
+    attrs: { name: 'app-profile' },
+  });
+  const role = mk('aws_iam_role', 'app_role', { x: 660, y: 260 }, { attrs: { name: 'app-role' } });
   return {
     nodes: [vpc, sub, inst, sg, profile, role],
     edges: [connect(inst, sg), connect(inst, profile), connect(profile, role)],
@@ -140,12 +230,98 @@ function compute(): Built {
 // Serverless: a Lambda with its IAM role, plus the data resources it typically
 // leans on — a DynamoDB table, an S3 bucket, and an ECR repository.
 function serverless(): Built {
-  const fn = mk('aws_lambda_function', 'api', { x: 120, y: 120 });
-  const role = mk('aws_iam_role', 'lambda_role', { x: 440, y: 120 });
-  const table = mk('aws_dynamodb_table', 'items', { x: 120, y: 300 });
-  const bucket = mk('aws_s3_bucket', 'assets', { x: 440, y: 300 });
-  const ecr = mk('aws_ecr_repository', 'images', { x: 760, y: 300 });
+  const fn = mk('aws_lambda_function', 'api', { x: 120, y: 120 }, {
+    attrs: { function_name: 'api', runtime: 'nodejs20.x', handler: 'index.handler', memory_size: 256, timeout: 10 },
+  });
+  const role = mk('aws_iam_role', 'lambda_role', { x: 440, y: 120 }, { attrs: { name: 'lambda-role' } });
+  const table = mk('aws_dynamodb_table', 'items', { x: 120, y: 300 }, {
+    attrs: { name: 'items', billing_mode: 'PAY_PER_REQUEST', hash_key: 'id' },
+  });
+  const bucket = mk('aws_s3_bucket', 'assets', { x: 440, y: 300 }, {
+    attrs: { bucket: 'app-assets', force_destroy: false },
+  });
+  const ecr = mk('aws_ecr_repository', 'images', { x: 760, y: 300 }, {
+    attrs: { name: 'app', image_tag_mutability: 'IMMUTABLE' },
+  });
   return { nodes: [fn, role, table, bucket, ecr], edges: [connect(fn, role)] };
+}
+
+// Three-tier stack: the whole picture. Public subnets front a load balancer and
+// two EC2 instances that assume a role through an instance profile; private
+// subnets hold an encrypted RDS via its subnet group; a NAT gateway (with its
+// EIP) gives the private tier egress. The richest example — 16 of the catalog's
+// types in one graph.
+function threeTier(): Built {
+  const vpc = mk('aws_vpc', 'vpc_1', { x: 40, y: 40 }, {
+    size: { width: 840, height: 620 },
+    attrs: { cidr_block: '10.0.0.0/16', enable_dns_support: true, enable_dns_hostnames: true },
+  });
+  const pubA = mk('aws_subnet', 'public_a', { x: 24, y: 48 }, {
+    size: { width: 380, height: 200 }, parentId: vpc.id,
+    attrs: { cidr_block: '10.0.1.0/24', availability_zone: 'us-east-1a', map_public_ip_on_launch: true },
+  });
+  const pubB = mk('aws_subnet', 'public_b', { x: 432, y: 48 }, {
+    size: { width: 380, height: 200 }, parentId: vpc.id,
+    attrs: { cidr_block: '10.0.2.0/24', availability_zone: 'us-east-1b', map_public_ip_on_launch: true },
+  });
+  const privA = mk('aws_subnet', 'private_a', { x: 24, y: 272 }, {
+    size: { width: 380, height: 190 }, parentId: vpc.id,
+    attrs: { cidr_block: '10.0.11.0/24', availability_zone: 'us-east-1a' },
+  });
+  const privB = mk('aws_subnet', 'private_b', { x: 432, y: 272 }, {
+    size: { width: 380, height: 190 }, parentId: vpc.id,
+    attrs: { cidr_block: '10.0.12.0/24', availability_zone: 'us-east-1b' },
+  });
+  const web1 = mk('aws_instance', 'web_1', { x: 18, y: 70 }, {
+    parentId: pubA.id, attrs: { ami: 'ami-0abcd1234', instance_type: 't3.small' },
+  });
+  const web2 = mk('aws_instance', 'web_2', { x: 18, y: 70 }, {
+    parentId: pubB.id, attrs: { ami: 'ami-0abcd1234', instance_type: 't3.small' },
+  });
+  const nat = mk('aws_nat_gateway', 'nat_1', { x: 210, y: 70 }, {
+    parentId: pubA.id, attrs: { connectivity_type: 'public' },
+  });
+  const igw = mk('aws_internet_gateway', 'igw_1', { x: 24, y: 500 }, { parentId: vpc.id });
+  const webSg = mk('aws_security_group', 'web_sg', { x: 210, y: 500 }, {
+    parentId: vpc.id, attrs: { name: 'web', description: 'HTTP/HTTPS' },
+  });
+  const dbSg = mk('aws_security_group', 'db_sg', { x: 400, y: 500 }, {
+    parentId: vpc.id, attrs: { name: 'db', description: 'Postgres from web tier' },
+  });
+  const tg = mk('aws_lb_target_group', 'web_tg', { x: 590, y: 500 }, {
+    parentId: vpc.id, attrs: { name: 'web-tg', port: 80, protocol: 'HTTP', target_type: 'instance' },
+  });
+  // Free (region-scoped) nodes to the right of the VPC.
+  const lb = mk('aws_lb', 'web_lb', { x: 940, y: 60 }, {
+    attrs: { name: 'web-alb', internal: false, load_balancer_type: 'application' },
+  });
+  const listener = mk('aws_lb_listener', 'https', { x: 940, y: 190 }, { attrs: { port: 443, protocol: 'HTTPS' } });
+  const eip = mk('aws_eip', 'nat_eip', { x: 940, y: 320 }, { attrs: { domain: 'vpc' } });
+  const profile = mk('aws_iam_instance_profile', 'web_profile', { x: 940, y: 440 }, { attrs: { name: 'web-profile' } });
+  const role = mk('aws_iam_role', 'web_role', { x: 940, y: 560 }, { attrs: { name: 'web-role' } });
+  const dbsg = mk('aws_db_subnet_group', 'db_subnets', { x: 1160, y: 60 }, { attrs: { name: 'db-subnets' } });
+  const db = mk('aws_db_instance', 'postgres', { x: 1160, y: 200 }, {
+    attrs: {
+      engine: 'postgres', engine_version: '16', instance_class: 'db.t3.small',
+      allocated_storage: 50, db_name: 'appdb', username: 'app',
+    },
+  });
+  const kms = mk('aws_kms_key', 'db_key', { x: 1160, y: 360 }, {
+    attrs: { description: 'RDS encryption at rest', enable_key_rotation: true, deletion_window_in_days: 30 },
+  });
+  const s3 = mk('aws_s3_bucket', 'assets', { x: 1160, y: 500 }, { attrs: { bucket: 'app-assets', force_destroy: false } });
+
+  return {
+    nodes: [vpc, pubA, pubB, privA, privB, web1, web2, nat, igw, webSg, dbSg, tg,
+      lb, listener, eip, profile, role, dbsg, db, kms, s3],
+    edges: [
+      connect(web1, webSg), connect(web2, webSg),
+      connect(web1, profile), connect(web2, profile), connect(profile, role),
+      connect(listener, lb), connect(nat, eip),
+      connect(dbsg, privA), connect(dbsg, privB),
+      connect(db, dbsg), connect(db, dbSg), connect(db, kms),
+    ],
+  };
 }
 
 /** An example the empty-canvas picker can load. `id` is the i18n key suffix
@@ -164,4 +340,5 @@ export const EXAMPLES: ExampleDef[] = [
   { id: 'database', build: database },
   { id: 'compute', build: compute },
   { id: 'serverless', build: serverless },
+  { id: 'threeTier', build: threeTier },
 ];

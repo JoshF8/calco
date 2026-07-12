@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { useCanvasStore, type ApiAttrValue } from './store';
 import { containerSize } from './containment';
 import { EXAMPLES } from './examples';
+import { attrSpec } from './schema';
 
 describe('canvas store', () => {
   beforeEach(() => useCanvasStore.getState().clear());
@@ -457,5 +458,26 @@ describe('canvas store', () => {
       }
       for (const target of targets) expect(ids.has(target)).toBe(true);
     }
+  });
+
+  it('seeds every example only with curated, valid literal attributes', () => {
+    // Guards the enriched examples: a literal attribute must be a curated schema
+    // argument (so it can't be a gesture-owned name the projection overwrites),
+    // and an enum-typed one must use a value the schema allows.
+    const problems: string[] = [];
+    for (const ex of EXAMPLES) {
+      useCanvasStore.getState().loadExample(ex.id);
+      for (const node of useCanvasStore.getState().nodes) {
+        for (const [key, value] of Object.entries(node.data.attributes)) {
+          if (value.kind !== 'literal') continue;
+          const spec = attrSpec(node.data.type, key);
+          if (!spec) problems.push(`${ex.id}: ${node.data.type}.${key} is not a curated attribute`);
+          else if (spec.enum && !spec.enum.includes(value.value ?? '')) {
+            problems.push(`${ex.id}: ${node.data.type}.${key}=${value.value ?? ''} not in enum`);
+          }
+        }
+      }
+    }
+    expect(problems).toEqual([]);
   });
 });
