@@ -46,7 +46,10 @@ import {
 
 type LucideIcon = ComponentType<{ className?: string }>;
 
-const iconByType: Record<string, LucideIcon> = {
+// Exported (a plain data map, not a component) so the catalog-parity test can
+// assert every catalog type has an icon.
+// eslint-disable-next-line react-refresh/only-export-components
+export const iconByType: Record<string, LucideIcon> = {
   aws_vpc: Network,
   aws_subnet: Waypoints,
   aws_internet_gateway: Globe,

@@ -134,6 +134,66 @@ const schemas: Record<string, AttrSpec[]> = {
     { name: 'price_class', type: 'string', enum: ['PriceClass_All', 'PriceClass_200', 'PriceClass_100'] },
     { name: 'default_root_object', type: 'string', placeholder: 'index.html' },
   ],
+  aws_ecs_cluster: [{ name: 'name', type: 'string', required: true, placeholder: 'app-cluster' }],
+  aws_ecs_service: [
+    { name: 'name', type: 'string', required: true, placeholder: 'web' },
+    { name: 'desired_count', type: 'number', placeholder: '2' },
+    { name: 'launch_type', type: 'string', enum: ['EC2', 'FARGATE', 'EXTERNAL'] },
+  ],
+  aws_ecs_task_definition: [
+    { name: 'family', type: 'string', required: true, placeholder: 'web' },
+    { name: 'cpu', type: 'string', placeholder: '256' },
+    { name: 'memory', type: 'string', placeholder: '512' },
+    { name: 'network_mode', type: 'string', enum: ['bridge', 'host', 'awsvpc', 'none'] },
+  ],
+  aws_api_gateway_rest_api: [
+    { name: 'name', type: 'string', required: true, placeholder: 'my-api' },
+    { name: 'description', type: 'string' },
+  ],
+  aws_apigatewayv2_api: [
+    { name: 'name', type: 'string', required: true, placeholder: 'my-http-api' },
+    { name: 'protocol_type', type: 'string', required: true, enum: ['HTTP', 'WEBSOCKET'] },
+  ],
+  aws_cloudwatch_log_group: [
+    { name: 'name', type: 'string', required: true, placeholder: '/aws/lambda/my-fn' },
+    { name: 'retention_in_days', type: 'number', placeholder: '14' },
+  ],
+  aws_cloudwatch_metric_alarm: [
+    { name: 'alarm_name', type: 'string', required: true, placeholder: 'high-cpu' },
+    { name: 'comparison_operator', type: 'string', required: true, enum: ['GreaterThanOrEqualToThreshold', 'GreaterThanThreshold', 'LessThanThreshold', 'LessThanOrEqualToThreshold'] },
+    { name: 'evaluation_periods', type: 'number', required: true, placeholder: '2' },
+    { name: 'metric_name', type: 'string', placeholder: 'CPUUtilization' },
+    { name: 'namespace', type: 'string', placeholder: 'AWS/EC2' },
+    { name: 'threshold', type: 'number', placeholder: '80' },
+  ],
+  aws_cloudwatch_event_rule: [
+    { name: 'name', type: 'string', placeholder: 'daily' },
+    { name: 'description', type: 'string' },
+    { name: 'schedule_expression', type: 'string', placeholder: 'rate(5 minutes)' },
+    { name: 'state', type: 'string', enum: ['ENABLED', 'DISABLED'] },
+  ],
+  aws_sns_topic: [
+    { name: 'name', type: 'string', placeholder: 'events' },
+    { name: 'display_name', type: 'string' },
+    { name: 'fifo_topic', type: 'bool' },
+  ],
+  aws_sqs_queue: [
+    { name: 'name', type: 'string', placeholder: 'jobs' },
+    { name: 'fifo_queue', type: 'bool' },
+    { name: 'visibility_timeout_seconds', type: 'number', placeholder: '30' },
+    { name: 'message_retention_seconds', type: 'number', placeholder: '345600' },
+  ],
+  aws_sns_topic_subscription: [
+    { name: 'protocol', type: 'string', required: true, enum: ['sqs', 'lambda', 'email', 'https', 'http', 'sms', 'application'] },
+    { name: 'raw_message_delivery', type: 'bool' },
+  ],
+  aws_efs_file_system: [
+    { name: 'creation_token', type: 'string' },
+    { name: 'encrypted', type: 'bool' },
+    { name: 'performance_mode', type: 'string', enum: ['generalPurpose', 'maxIO'] },
+    { name: 'throughput_mode', type: 'string', enum: ['bursting', 'provisioned', 'elastic'] },
+  ],
+  aws_efs_mount_target: [{ name: 'ip_address', type: 'string' }],
 };
 
 /** The resource types that have a curated schema. Exported for the consistency
