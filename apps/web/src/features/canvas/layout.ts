@@ -14,28 +14,44 @@ import type { ResourceNode } from './store';
 import { isContainer } from './containment';
 
 // Default size fed to ELK for a leaf node before React Flow has measured the
-// real DOM — sized to the rendered emblem (min-w 196 / max-w 264, three text
-// lines) so containers come back big enough; React Flow re-measures after paint.
-const LEAF = { width: 224, height: 92 };
+// real DOM — matched to the rendered emblem (min-w 196 / max-w 264, ~65px tall)
+// so ELK sizes containers accurately for their children.
+const LEAF = { width: 216, height: 68 };
+
+// Size given to an EMPTY container (a subnet an imported resource references but
+// nests nothing into). Without a size ELK collapses it — or it keeps the large
+// greenfield default and overflows its parent — so we pin a compact one, and
+// the parent then reserves room for it.
+const EMPTY_BOX = { width: 264, height: 150 };
 
 // Container inner padding, with extra room at the top for the box's own header
 // (icon + label + address, ~44px).
 const CONTAINER_PADDING = '[top=44,left=18,bottom=18,right=18]';
 
+// Root layout: layered, top-to-bottom (edges attach to the source's bottom
+// handle and the target's top handle, so a reference reads as a clean downward
+// line). Each compound node is laid out on its own (SEPARATE children, the
+// default) and then placed here as one sized node — this lets a container pack
+// its body with a different algorithm than the root uses.
 const GRAPH_OPTIONS: Record<string, string> = {
   'elk.algorithm': 'layered',
-  // Edges attach to the source's bottom handle and the target's top handle, so
-  // the graph must flow top-to-bottom for a reference to read as a clean
-  // downward line (dependent above dependency) instead of a sideways curl.
   'elk.direction': 'DOWN',
-  'elk.hierarchyHandling': 'INCLUDE_CHILDREN', // lay out across container boundaries
-  // Keep siblings near their input order so the layout is stable and legible
-  // rather than reshuffled on every import.
   'elk.layered.considerModelOrder.strategy': 'NODES_AND_EDGES',
   'elk.layered.spacing.nodeNodeBetweenLayers': '84',
   'elk.spacing.nodeNode': '48',
   'elk.spacing.edgeNode': '28',
   'elk.padding': CONTAINER_PADDING,
+};
+
+// A container's OWN body. Its children (subnets in a VPC, resources in a
+// subnet) are mostly unconnected, so layered would stretch them into one long
+// row; rectpacking instead packs them into a compact block near a target
+// aspect ratio. A compound node uses its own options, not the root's.
+const CONTAINER_LAYOUT: Record<string, string> = {
+  'elk.algorithm': 'rectpacking',
+  'elk.aspectRatio': '1.6',
+  'elk.padding': CONTAINER_PADDING,
+  'elk.spacing.nodeNode': '28',
 };
 
 /** layout assigns positions (and container sizes) to imported nodes with ELK,
@@ -57,7 +73,13 @@ export async function layout(nodes: ResourceNode[], edges: Edge[]): Promise<Reso
   const toElk = (n: ResourceNode): ElkNode => {
     const kids = childrenOf.get(n.id) ?? [];
     if (isBox(n)) {
-      return { id: n.id, children: kids.map(toElk), layoutOptions: { 'elk.padding': CONTAINER_PADDING } };
+      // A container with children: ELK sizes it to fit them plus the header
+      // padding. An empty container: pin a compact explicit size so it neither
+      // collapses nor overflows its parent.
+      if (kids.length === 0) {
+        return { id: n.id, width: EMPTY_BOX.width, height: EMPTY_BOX.height };
+      }
+      return { id: n.id, children: kids.map(toElk), layoutOptions: CONTAINER_LAYOUT };
     }
     return { id: n.id, width: LEAF.width, height: LEAF.height };
   };
