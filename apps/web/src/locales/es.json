@@ -143,6 +143,10 @@
       "nestHint": "Arrastrá recursos acá adentro para anidarlos.",
       "dropToNest": "Soltalo adentro para anidarlo — esa anidación genera la referencia."
     },
+    "module": {
+      "source": "Fuente",
+      "label": "Módulo"
+    },
     "edge": {
       "reference": "{{from}} referencia a {{to}} vía {{attribute}}"
     }

@@ -119,6 +119,30 @@ type Output struct {
 	Sensitive   bool      `json:"sensitive,omitempty"`
 }
 
+// Module is a `module "name" { ... }` invocation. The importer resolves modules
+// whose source is a local directory inside the imported file set: the module's
+// source resources stay ordinary Resources in the Model, and Module groups them
+// behind the invocation boundary so the canvas can render it as a container.
+// Remote modules stay unresolved (and diagnosed) until a fetcher lands; the
+// generator ignores Modules entirely — imported projects regenerate clean HCL
+// without module boundaries.
+type Module struct {
+	// ID is the stable internal identity for the module invocation.
+	ID ResourceID `json:"id"`
+	// Name is the module block's label, e.g. "eks".
+	Name string `json:"name"`
+	// Source is the block's source string, e.g. "./modules/eks".
+	Source string `json:"source"`
+	// Local reports whether Source resolved to a directory in the import.
+	Local bool `json:"local"`
+	// Arguments are the invocation's arguments (source/version excluded), keyed
+	// by argument name.
+	Arguments map[string]AttrValue `json:"arguments"`
+	// Resources lists the model resources defined under this module's source
+	// directory, in import order.
+	Resources []ResourceID `json:"resources"`
+}
+
 // Model is a complete infrastructure design: the single source of truth
 // between the canvas and the generated Terraform.
 type Model struct {
@@ -126,6 +150,7 @@ type Model struct {
 	Edges     []Edge     `json:"edges"`
 	Variables []Variable `json:"variables"`
 	Outputs   []Output   `json:"outputs"`
+	Modules   []Module   `json:"modules"`
 }
 
 // NewModel returns an empty Model with non-nil slices.
@@ -135,5 +160,6 @@ func NewModel() *Model {
 		Edges:     []Edge{},
 		Variables: []Variable{},
 		Outputs:   []Output{},
+		Modules:   []Module{},
 	}
 }

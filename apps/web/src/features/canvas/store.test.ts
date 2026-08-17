@@ -163,6 +163,27 @@ describe('canvas store', () => {
     expect(model.outputs).toEqual([]);
   });
 
+  it('toApiModel drops read-only module boxes but keeps their resources', () => {
+    const { loadImported } = useCanvasStore.getState();
+    loadImported(
+      [
+        {
+          id: 'mod-1',
+          type: 'module',
+          position: { x: 0, y: 0 },
+          selectable: false,
+          data: { kind: 'module', type: 'module', name: 'vpc', source: './modules/vpc', attributes: {} },
+        },
+        { id: 'v', type: 'resource', position: { x: 0, y: 0 }, parentId: 'mod-1', data: { type: 'aws_vpc', name: 'main', attributes: {} } },
+      ],
+      [],
+    );
+    const model = useCanvasStore.getState().toApiModel();
+    expect(model.resources).toHaveLength(1);
+    expect(model.resources![0].type).toBe('aws_vpc');
+    expect(model.resources!.some((r) => r.type === 'module')).toBe(false);
+  });
+
   it('onConnect encodes the real AWS argument via the typed rule', () => {
     const { addResource } = useCanvasStore.getState();
     addResource('aws_instance');

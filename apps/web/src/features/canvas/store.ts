@@ -151,7 +151,7 @@ function uniqueName(nodes: ResourceNode[], type: string): string {
 // for what it holds and never covers or steals clicks from its children. Ranks
 // are fixed by type (not live geometry or selection); the canvas also runs with
 // elevateNodesOnSelect disabled so selecting a container can't lift it forward.
-const containerZ: Record<string, number> = { aws_vpc: 0, aws_subnet: 1 };
+const containerZ: Record<string, number> = { aws_vpc: 0, aws_subnet: 1, module: 0 };
 function nodeZ(type: string): number {
   return isContainer(type) ? (containerZ[type] ?? 1) : 10;
 }
@@ -428,7 +428,12 @@ export const useCanvasStore = create<CanvasState & CanvasActions>((set, get) => 
   toApiModel: () => {
     const s = get();
     return {
-      resources: s.nodes.map((n) => {
+      // Module boxes are read-only groupings: they carry no real Terraform and
+      // are excluded from the export model (imported projects regenerate clean
+      // HCL without module boundaries). Their nested resources export normally.
+      resources: s.nodes
+        .filter((n) => n.data.kind !== 'module')
+        .map((n) => {
         // Derive references from the single sources of truth — connections
         // (edges) and containment (parentId) — via the same deriveRefs used by
         // the Inspector, so a ref can never be edited away or drift from what

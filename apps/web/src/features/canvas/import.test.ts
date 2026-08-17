@@ -63,6 +63,46 @@ describe('modelToCanvas', () => {
     expect(edges).toHaveLength(0);
     expect(nodes[0].data.attributes.foo).toBeUndefined(); // not kept as a literal either
   });
+
+  it('renders local modules as boxes with their resources nested inside', () => {
+    const model: ApiModel = {
+      resources: [
+        { id: 'v', type: 'aws_vpc', name: 'main', attributes: {} },
+        { id: 's', type: 'aws_subnet', name: 'a', attributes: { vpc_id: ref('v') } },
+        { id: 'root', type: 'aws_s3_bucket', name: 'logs', attributes: {} },
+      ],
+      modules: [
+        {
+          id: 'mod-1',
+          name: 'vpc',
+          source: './modules/vpc',
+          local: true,
+          arguments: { name: lit('prod') },
+          resources: ['v', 's'],
+        },
+      ],
+    };
+
+    const { nodes, edges } = modelToCanvas(model);
+    const mod = nodes.find((n) => n.id === 'mod-1')!;
+    const byId = Object.fromEntries(nodes.map((n) => [n.id, n]));
+
+    // Module node: read-only box carrying the invocation name and source.
+    expect(mod.type).toBe('module');
+    expect(mod.selectable).toBe(false);
+    expect(mod.data).toMatchObject({ kind: 'module', type: 'module', name: 'vpc', source: './modules/vpc' });
+    expect(mod.data.attributes.name?.value).toBe('prod');
+
+    // Its resources are parented to the box; containment still nests within a
+    // module, so the subnet sits in the VPC that sits in the module.
+    expect(byId.v.parentId).toBe('mod-1');
+    expect(byId.s.parentId).toBe('v');
+    // Resources outside any module stay free.
+    expect(byId.root.parentId).toBeUndefined();
+
+    // Module grouping is not a reference: it creates no edges.
+    expect(edges).toHaveLength(0);
+  });
 });
 
 // The canvas round-trip, mirror of the server's Import(Generate(M)) test: every

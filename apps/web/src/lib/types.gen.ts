@@ -55,7 +55,7 @@ export interface paths {
         put?: never;
         /**
          * Import Terraform into a graph model
-         * @description Parses Terraform source statically (no terraform binary) into a graph model. It reads resource blocks, scalar literals, references between resources, and lists of those. Anything it cannot yet represent — nested blocks, references to var/data/module, functions, count/for_each — is returned as a diagnostic and skipped, never guessed. A 422 is returned only when the HCL does not parse.
+         * @description Parses Terraform source statically (no terraform binary) into a graph model. It reads resource blocks, scalar literals, references between resources, lists of those, and nested blocks (ingress, default_action, ebs_block_device, …) in source order. Anything it cannot yet represent — label-bearing blocks such as dynamic/provisioner, references to var/data/module, functions, count/for_each — is returned as a diagnostic and skipped, never guessed. A 422 is returned only when the HCL does not parse.
          */
         post: operations["import-terraform"];
         delete?: never;
@@ -247,9 +247,25 @@ export interface components {
              */
             readonly $schema?: string;
             edges?: components["schemas"]["Edge"][] | null;
+            modules?: components["schemas"]["Module"][] | null;
             outputs?: components["schemas"]["Output"][] | null;
             resources?: components["schemas"]["Resource"][] | null;
             variables?: components["schemas"]["Variable"][] | null;
+        };
+        Module: {
+            arguments?: {
+                [key: string]: components["schemas"]["AttrValue"];
+            };
+            /** @description Stable internal module ID (UUID). */
+            id: string;
+            /** @description True when Source resolved to a directory in the import. */
+            local: boolean;
+            /** @description Module block label, e.g. eks. */
+            name: string;
+            /** @description IDs of the resources defined under the module's source directory. */
+            resources?: string[] | null;
+            /** @description Source string, e.g. ./modules/eks. */
+            source: string;
         };
         Output: {
             description?: string;

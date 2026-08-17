@@ -143,6 +143,10 @@
       "nestHint": "Drag resources in here to nest them.",
       "dropToNest": "Drop it inside to nest — that nesting creates the reference."
     },
+    "module": {
+      "source": "Source",
+      "label": "Module"
+    },
     "edge": {
       "reference": "{{from}} references {{to}} via {{attribute}}"
     }

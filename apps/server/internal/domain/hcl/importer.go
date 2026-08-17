@@ -4,8 +4,11 @@ package hcl
 // back into a graph.Model. It lives in the domain because HCL parsing is pure
 // token work with no I/O, and it deliberately does NOT shell out to terraform
 // — it reads the source statically with hclsyntax. That trades some accuracy
-// (it cannot resolve computed values, modules, or count/for_each) for zero
-// infrastructure, which is the right first step for read-only visualization.
+// (it cannot resolve computed values, remote modules, or count/for_each) for
+// zero infrastructure, which is the right first step for read-only
+// visualization. Modules whose source is a local directory inside the import
+// are resolved statically: they become graph.Module groupings with the source
+// resources nested behind the invocation.
 //
 // The one non-obvious move is reference resolution. HCL writes a dependency by
 // address (aws_vpc.main.id), but the model references by ResourceID (a UUID),
@@ -21,13 +24,16 @@ package hcl
 //
 // Anything Import cannot faithfully represent — label-bearing or
 // structural blocks, references to var/local/data/module, function calls,
-// interpolations, count/for_each — is reported as a Diagnostic and skipped,
-// never guessed. A non-nil error means the HCL did not parse at all;
-// valid-but-unsupported input yields diagnostics.
+// interpolations, count/for_each, and module invocations with remote or unknown
+// sources — is reported as a Diagnostic and skipped, never guessed. A non-nil
+// error means the HCL did not parse at all; valid-but-unsupported input yields
+// diagnostics.
 
 import (
 	"fmt"
+	"path"
 	"sort"
+	"strings"
 
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
@@ -61,6 +67,13 @@ var structuralBlocks = map[string]bool{"terraform": true, "provider": true}
 // Import parses Terraform files (filename -> HCL source) into a graph.Model,
 // plus the diagnostics for everything it could not represent. The returned
 // model is not validated here; callers run Model.Validate as needed.
+//
+// Local modules — a `module` block whose source is a directory inside the
+// imported file set — are resolved: the invocation becomes a graph.Module that
+// groups the resources defined under that directory (one container per source
+// dir, even if several invocations share it), and its variable/output blocks
+// are treated as the module's interface (silent, not diagnosed). Modules with
+// remote or unknown sources stay diagnosed until a fetcher lands.
 func Import(files map[string]string) (*graph.Model, []Diagnostic, error) {
 	names := make([]string, 0, len(files))
 	for n := range files {
@@ -79,7 +92,9 @@ func Import(files map[string]string) (*graph.Model, []Diagnostic, error) {
 	var diags []Diagnostic
 	var resources []parsedResource
 
-	// Pass 1: register every resource so references can resolve across files.
+	// Parse every file once up front so the module pre-pass and the resource
+	// pass share the same trees.
+	parsed := make(map[string]*hclsyntax.Body, len(names))
 	for _, name := range names {
 		f, pd := hclsyntax.ParseConfig([]byte(files[name]), name, hcl.Pos{Line: 1, Column: 1})
 		if pd.HasErrors() {
@@ -89,30 +104,130 @@ func Import(files map[string]string) (*graph.Model, []Diagnostic, error) {
 		if !ok {
 			return nil, nil, fmt.Errorf("hcl: %s has an unexpected body type", name)
 		}
-		for _, b := range body.Blocks {
-			if b.Type != "resource" {
-				if !structuralBlocks[b.Type] {
-					diags = append(diags, Diagnostic{File: name, Reason: fmt.Sprintf("%q block not imported yet", b.Type)})
+		parsed[name] = body
+	}
+
+	// Module pre-pass: collect every module invocation and resolve the local
+	// ones. dirToModule maps each cleaned local source dir to its graph.Module
+	// index; several invocations of the same dir share one container — the
+	// canvas shows the module source codebase once, not one box per
+	// instantiation (the instantiations themselves are not yet modeled).
+	dirToModule := map[string]int{}
+	fileSet := make(map[string]bool, len(names))
+	for _, name := range names {
+		fileSet[path.Clean(name)] = true
+	}
+	type moduleMeta struct {
+		index int
+		name  string
+		file  string
+		block *hclsyntax.Block
+		local bool
+	}
+	var moduleMetas []moduleMeta
+	for _, name := range names {
+		for _, b := range parsed[name].Blocks {
+			if b.Type != "module" {
+				continue
+			}
+			meta := moduleMeta{index: -1, name: label(b), file: name, block: b}
+			if len(b.Labels) == 1 {
+				if src, ok := moduleSource(b); ok && isLocalSource(src) {
+					if dir, ok := resolveLocalDir(src, name, fileSet); ok {
+						meta.local = true
+						if idx, claimed := dirToModule[dir]; claimed {
+							meta.index = idx
+						} else {
+							meta.index = len(model.Modules)
+							dirToModule[dir] = meta.index
+							model.Modules = append(model.Modules, graph.Module{
+								ID:        graph.NewResourceID(),
+								Name:      b.Labels[0],
+								Source:    src,
+								Local:     true,
+								Arguments: map[string]graph.AttrValue{},
+								Resources: []graph.ResourceID{},
+							})
+						}
+					}
 				}
+			}
+			// meta.local stays false for remote/unknown/malformed sources, so
+			// the module is honestly diagnosed below.
+			moduleMetas = append(moduleMetas, meta)
+		}
+	}
+
+	// Pass 1: register every resource so references can resolve across files.
+	for _, name := range names {
+		body := parsed[name]
+		ownDir, inModule := owningModuleDir(dirToModule, name)
+		for _, b := range body.Blocks {
+			switch {
+			case b.Type == "resource":
+				if len(b.Labels) != 2 {
+					diags = append(diags, Diagnostic{File: name, Reason: "resource block needs exactly a type and a name label"})
+					continue
+				}
+				typ, nm := b.Labels[0], b.Labels[1]
+				addr := typ + "." + nm
+				if _, dup := index[addr]; dup {
+					diags = append(diags, Diagnostic{File: name, Address: addr, Reason: "duplicate resource address; keeping the first"})
+					continue
+				}
+				id := graph.NewResourceID()
+				if err := model.AddResource(graph.Resource{ID: id, Type: typ, Name: nm}); err != nil {
+					diags = append(diags, Diagnostic{File: name, Address: addr, Reason: err.Error()})
+					continue
+				}
+				index[addr] = id
+				resources = append(resources, parsedResource{id: id, block: b, file: name})
+				if inModule {
+					mod := &model.Modules[dirToModule[ownDir]]
+					mod.Resources = append(mod.Resources, id)
+				}
+			case b.Type == "module":
+				// Diagnosed (or resolved) in the module pass below.
+			case (b.Type == "variable" || b.Type == "output") && inModule:
+				// A resolved module's interface — the module grouping covers it.
+			case !structuralBlocks[b.Type]:
+				diags = append(diags, Diagnostic{File: name, Reason: fmt.Sprintf("%q block not imported yet", b.Type)})
+			}
+		}
+	}
+
+	// Module pass: unresolved (remote or unknown source) invocations diagnose;
+	// resolved ones get their arguments converted against the resource index.
+	// Representable arguments (literals, references to imported resources) are
+	// stored on the Module; the rest are reported as ONE aggregated diagnostic
+	// per invocation — the module's arguments are not rendered yet, so a
+	// per-argument stream would bury the report (real repos pass dozens of
+	// var/map values into every module).
+	for _, mr := range moduleMetas {
+		if mr.index < 0 {
+			diags = append(diags, Diagnostic{File: mr.file, Reason: `"module" block not imported yet`})
+			continue
+		}
+		mod := &model.Modules[mr.index]
+		src := []byte(files[mr.file])
+		skipped := 0
+		for _, an := range sortedKeys(mr.block.Body.Attributes) {
+			if an == "source" || an == "version" {
 				continue
 			}
-			if len(b.Labels) != 2 {
-				diags = append(diags, Diagnostic{File: name, Reason: "resource block needs exactly a type and a name label"})
+			val, d := convertExpr(mr.block.Body.Attributes[an].Expr, src, index)
+			if d != nil {
+				skipped++
 				continue
 			}
-			typ, nm := b.Labels[0], b.Labels[1]
-			addr := typ + "." + nm
-			if _, dup := index[addr]; dup {
-				diags = append(diags, Diagnostic{File: name, Address: addr, Reason: "duplicate resource address; keeping the first"})
-				continue
-			}
-			id := graph.NewResourceID()
-			if err := model.AddResource(graph.Resource{ID: id, Type: typ, Name: nm}); err != nil {
-				diags = append(diags, Diagnostic{File: name, Address: addr, Reason: err.Error()})
-				continue
-			}
-			index[addr] = id
-			resources = append(resources, parsedResource{id: id, block: b, file: name})
+			mod.Arguments[an] = val
+		}
+		if skipped > 0 {
+			diags = append(diags, Diagnostic{
+				File:    mr.file,
+				Address: "module." + mr.name,
+				Reason:  "module arguments not representable",
+			})
 		}
 	}
 
@@ -158,6 +273,76 @@ func Import(files map[string]string) (*graph.Model, []Diagnostic, error) {
 	// re-deriving them; the generator ignores them and uses the refs directly.
 	model.Edges = model.DeriveEdges()
 	return model, diags, nil
+}
+
+// label returns a block's first label, or "" when it has none.
+func label(b *hclsyntax.Block) string {
+	if len(b.Labels) == 0 {
+		return ""
+	}
+	return b.Labels[0]
+}
+
+// moduleSource reads a module block's source argument as a literal string,
+// reporting false when it is absent or not a plain string literal.
+func moduleSource(b *hclsyntax.Block) (string, bool) {
+	a, ok := b.Body.Attributes["source"]
+	if !ok {
+		return "", false
+	}
+	val, err := a.Expr.Value(nil)
+	if err != nil || val.IsNull() || !val.Type().Equals(cty.String) {
+		return "", false
+	}
+	return val.AsString(), true
+}
+
+// isLocalSource reports whether a module source is an unambiguous local
+// filesystem path. Terraform treats a bare "a/b/c" as a registry shorthand and
+// "git::…" / scheme'd URLs as remote, so only ./ and ../ prefixes (and other
+// paths with fewer than three segments) count as local.
+func isLocalSource(src string) bool {
+	if strings.HasPrefix(src, "./") || strings.HasPrefix(src, "../") {
+		return true
+	}
+	if strings.Contains(src, "://") || strings.HasPrefix(src, "git::") || strings.Contains(src, "//") {
+		return false
+	}
+	segs := strings.Split(strings.Trim(src, "/"), "/")
+	return len(segs) < 3
+}
+
+// resolveLocalDir resolves a local module source relative to the file that
+// declares it, against the imported file-key space, and reports whether any
+// imported file lives under that directory. File keys share one namespace (the
+// browser keys folder picks by webkitRelativePath), so joining the source onto
+// the declaring file's own directory resolves to the same space.
+func resolveLocalDir(src, blockFile string, fileSet map[string]bool) (string, bool) {
+	dir := path.Clean(path.Join(path.Dir(blockFile), src))
+	if fileSet[dir] {
+		return dir, true
+	}
+	for k := range fileSet {
+		if strings.HasPrefix(k, dir+"/") {
+			return dir, true
+		}
+	}
+	return "", false
+}
+
+// owningModuleDir returns the deepest local module directory that contains
+// fileKey (its own source dir), so a resource inside a nested module belongs to
+// the nested module, not its parent.
+func owningModuleDir(dirToModule map[string]int, fileKey string) (string, bool) {
+	best, bestLen := "", -1
+	for d := range dirToModule {
+		if fileKey == d || strings.HasPrefix(fileKey, d+"/") {
+			if len(d) > bestLen {
+				best, bestLen = d, len(d)
+			}
+		}
+	}
+	return best, bestLen >= 0
 }
 
 func addressOf(m *graph.Model, id graph.ResourceID) string {

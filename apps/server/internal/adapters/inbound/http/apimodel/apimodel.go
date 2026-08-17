@@ -96,6 +96,17 @@ type Output struct {
 	Sensitive   bool      `json:"sensitive,omitempty"`
 }
 
+// Module is the wire form of graph.Module: a module invocation with the
+// resources its local source directory contributed to the model.
+type Module struct {
+	ID        string               `json:"id" doc:"Stable internal module ID (UUID)."`
+	Name      string               `json:"name" doc:"Module block label, e.g. eks."`
+	Source    string               `json:"source" doc:"Source string, e.g. ./modules/eks."`
+	Local     bool                 `json:"local" doc:"True when Source resolved to a directory in the import."`
+	Arguments map[string]AttrValue `json:"arguments,omitempty"`
+	Resources []string             `json:"resources,omitempty" doc:"IDs of the resources defined under the module's source directory."`
+}
+
 // Model is the wire form of graph.Model. Every collection is optional: an
 // empty model is valid (it simply yields no files), and a model may contain
 // only resources.
@@ -104,6 +115,7 @@ type Model struct {
 	Edges     []Edge     `json:"edges,omitempty"`
 	Variables []Variable `json:"variables,omitempty"`
 	Outputs   []Output   `json:"outputs,omitempty"`
+	Modules   []Module   `json:"modules,omitempty"`
 }
 
 // ToDomain converts the wire model into a domain graph.Model. It performs no
@@ -114,6 +126,7 @@ func (m Model) ToDomain() *graph.Model {
 		Edges:     make([]graph.Edge, len(m.Edges)),
 		Variables: make([]graph.Variable, len(m.Variables)),
 		Outputs:   make([]graph.Output, len(m.Outputs)),
+		Modules:   make([]graph.Module, len(m.Modules)),
 	}
 	for i, r := range m.Resources {
 		attrs := make(map[string]graph.AttrValue, len(r.Attributes))
@@ -158,6 +171,24 @@ func (m Model) ToDomain() *graph.Model {
 			Sensitive:   o.Sensitive,
 		}
 	}
+	for i, mod := range m.Modules {
+		args := make(map[string]graph.AttrValue, len(mod.Arguments))
+		for k, v := range mod.Arguments {
+			args[k] = v.toDomain()
+		}
+		res := make([]graph.ResourceID, len(mod.Resources))
+		for j, rid := range mod.Resources {
+			res[j] = graph.ResourceID(rid)
+		}
+		out.Modules[i] = graph.Module{
+			ID:        graph.ResourceID(mod.ID),
+			Name:      mod.Name,
+			Source:    mod.Source,
+			Local:     mod.Local,
+			Arguments: args,
+			Resources: res,
+		}
+	}
 	return out
 }
 
@@ -191,6 +222,7 @@ func FromDomain(m *graph.Model) Model {
 		Edges:     make([]Edge, len(m.Edges)),
 		Variables: make([]Variable, len(m.Variables)),
 		Outputs:   make([]Output, len(m.Outputs)),
+		Modules:   make([]Module, len(m.Modules)),
 	}
 	for i := range m.Resources {
 		r := m.Resources[i]
@@ -234,6 +266,24 @@ func FromDomain(m *graph.Model) Model {
 			Value:       attrValueFromDomain(o.Value),
 			Description: o.Description,
 			Sensitive:   o.Sensitive,
+		}
+	}
+	for i, mod := range m.Modules {
+		args := make(map[string]AttrValue, len(mod.Arguments))
+		for k, v := range mod.Arguments {
+			args[k] = attrValueFromDomain(v)
+		}
+		res := make([]string, len(mod.Resources))
+		for j, rid := range mod.Resources {
+			res[j] = string(rid)
+		}
+		out.Modules[i] = Module{
+			ID:        string(mod.ID),
+			Name:      mod.Name,
+			Source:    mod.Source,
+			Local:     mod.Local,
+			Arguments: args,
+			Resources: res,
 		}
 	}
 	return out

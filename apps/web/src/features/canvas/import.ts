@@ -68,7 +68,12 @@ function refEdge(source: string, target: string, attribute: string, cardinality:
 
 /** modelToCanvas turns an imported API model into canvas nodes and edges. It is
  * the inverse of toApiModel: nesting and connections are read back out of the
- * model's reference attributes, and only literals remain as node attributes. */
+ * model's reference attributes, and only literals remain as node attributes.
+ *
+ * Local modules become their own box: a 'module' node with the module's source
+ * resources nested inside it (they land at the top level of the model — the
+ * importer groups them per source directory). Containment nesting still wins
+ * within a module, so a subnet nests into its VPC inside the module box. */
 export function modelToCanvas(model: ApiModel): Reconstructed {
   const resources = model.resources ?? [];
   const typeById = new Map(resources.map((r) => [r.id, r.type] as const));
@@ -76,6 +81,28 @@ export function modelToCanvas(model: ApiModel): Reconstructed {
   const nodes: ResourceNode[] = [];
   const edges: Edge[] = [];
   const parentOf = new Map<string, string>();
+
+  // Local modules are containers: each becomes a node, and its resources (the
+  // module's source directory) get that node as their parent. Module nodes are
+  // read-only — they render the grouping and are never selectable or exported.
+  const modules = model.modules ?? [];
+  const moduleOf = new Map<string, string>(); // resource id -> module id
+  for (const mod of modules) {
+    for (const rid of mod.resources ?? []) moduleOf.set(rid, mod.id);
+    nodes.push({
+      id: mod.id,
+      type: 'module',
+      position: { x: 0, y: 0 }, // auto-layout assigns real coordinates
+      selectable: false,
+      data: {
+        kind: 'module',
+        type: 'module',
+        name: mod.name,
+        source: mod.source,
+        attributes: mod.arguments ?? {},
+      },
+    });
+  }
 
   for (const r of resources) {
     const rule = nestRule(r.type);
@@ -117,7 +144,9 @@ export function modelToCanvas(model: ApiModel): Reconstructed {
   }
 
   for (const n of nodes) {
-    const parent = parentOf.get(n.id);
+    // Containment nesting within a module wins over the module box itself (a
+    // subnet nests into its VPC inside the module); otherwise the module box.
+    const parent = parentOf.get(n.id) ?? moduleOf.get(n.id);
     if (parent) n.parentId = parent;
   }
 

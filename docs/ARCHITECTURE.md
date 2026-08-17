@@ -263,22 +263,35 @@ calco/
 
 ### 5.2 Brownfield — HCL to canvas (read-only in MVP)
 
-```
-1. User pastes a GitHub URL or uploads a .zip of Terraform files.
-   → POST /api/v1/import/github  { url: "..." }   (or multipart upload)
+The implemented path is a **static** importer; the terraform-binary/GithubFetcher pipeline below
+is the target for remote modules only:
 
-2. Server runs ImportTerraform use case:
-   a. GithubFetcher clones the repo to a tmpdir.
-   b. runner.Init(tmpdir)       — terraform init (download providers)
-   c. runner.Graph(tmpdir)      — terraform graph -type=plan (or plan -refresh=false → show -json)
-   d. domain.ImportFromGraph(graphDOT) → graph.Model
-   e. Persist as a new Project.
+1. User pastes Terraform text, adds `.tf` files, or picks a whole project folder.
+   → `POST /api/v1/import { files: { "path/main.tf": "..." } }` — keys are the browser's
+   `webkitRelativePath`, so `main.tf` in two different `modules/` dirs stays distinct.
 
-3. Browser navigates to the new project. Canvas renders with ELK.js layout (client-side).
+2. Server runs ImportTerraform: `domain.Import` parses every file with `hclsyntax` — no
+   terraform binary, no network. Resources, their nested blocks, and inter-resource references
+   become a `graph.Model`; anything unrepresentable (data, locals, remote modules,
+   var/data/module references, interpolation, count/for_each) is reported as a Diagnostic,
+   never guessed.
+
+   **Local modules** — a `module` block whose source (`./modules/...`) resolves to a directory
+   inside the uploaded file set — become `graph.Module` containers: the invocation is grouped
+   with the resources under its source directory (one container per source dir, even with
+   several invocations sharing it), its unrepresentable arguments collapse into one diagnostic
+   per invocation, and the module's own `variable`/`output` blocks are treated as its interface.
+   Modules with remote or unknown sources stay diagnosed until a fetcher lands.
+
+3. The browser reconstructs the canvas and lays it out with ELK.js (client-side). Each local
+   module renders as a read-only box with its source resources nested inside.
 
 4. MVP constraint: imported projects are read-only. To edit, the user "adopts" the project,
-   which regenerates clean HCL from the graph and converts to an editable project.
-```
+   which regenerates clean HCL from the graph — module boundaries and original formatting are
+   not preserved — and converts to an editable project.
+
+Remote-module resolution (GithubFetcher + `runner.Init` + `runner.Graph`, then
+`ImportFromGraph`) remains future work; the static parser deliberately does not shell out.
 
 ### 5.3 The "puente" flow (future, post-MVP)
 

@@ -448,3 +448,196 @@ func TestImportRoundTripsGeneratedHCL(t *testing.T) {
 		t.Errorf("round-trip mismatch:\n orig = %#v\n imp  = %#v", want, got)
 	}
 }
+
+func TestImportResolvesLocalModule(t *testing.T) {
+	files := map[string]string{
+		"main.tf": `
+module "vpc" {
+  source = "./modules/vpc"
+  name   = "prod"
+}
+`,
+		"modules/vpc/main.tf": `
+variable "name" { type = string }
+variable "cidr"  { default = "10.0.0.0/16" }
+
+resource "aws_vpc" "this" {
+  cidr_block = "10.0.0.0/16"
+}
+`,
+	}
+	m, diags, err := Import(files)
+	if err != nil {
+		t.Fatalf("import: %v", err)
+	}
+	if len(diags) != 0 {
+		t.Fatalf("unexpected diagnostics: %+v", diags)
+	}
+
+	if len(m.Modules) != 1 {
+		t.Fatalf("expected 1 module, got %d", len(m.Modules))
+	}
+	mod := m.Modules[0]
+	if mod.Name != "vpc" || mod.Source != "./modules/vpc" || !mod.Local {
+		t.Errorf("module = %+v", mod)
+	}
+	vpc := findAddr(t, m, "aws_vpc", "this")
+	if len(mod.Resources) != 1 || mod.Resources[0] != vpc.ID {
+		t.Errorf("module.Resources = %v, want [%s]", mod.Resources, vpc.ID)
+	}
+	if got := mod.Arguments["name"]; got.Kind != graph.KindLiteral || got.Lit != "prod" {
+		t.Errorf("module name argument = %+v, want literal prod", got)
+	}
+	// The module's variable/output blocks are its interface: silent, and the
+	// module's internal var ref stays diagnosed (never guessed).
+	if _, found := diagReason(diags, func(d Diagnostic) bool { return strings.Contains(d.Reason, "variable") }); found {
+		t.Errorf("module interface variables should be silent; got %+v", diags)
+	}
+}
+
+func TestImportLocalModuleShowsInternalVarRefs(t *testing.T) {
+	files := map[string]string{
+		"main.tf":                `module "m" { source = "./modules/m" }`,
+		"modules/m/main.tf":      `resource "aws_vpc" "v" { cidr_block = var.cidr }`,
+		"modules/m/variables.tf": `variable "cidr" {}`,
+	}
+	m, diags, err := Import(files)
+	if err != nil {
+		t.Fatalf("import: %v", err)
+	}
+	if len(m.Modules) != 1 || !m.Modules[0].Local {
+		t.Fatalf("expected a resolved local module, got %+v", m.Modules)
+	}
+	// The module groups the resource; the var reference inside it is diagnosed
+	// honestly rather than resolved by guessing a default.
+	var refFound bool
+	for _, d := range diags {
+		if d.Address == "aws_vpc.v" && d.Attribute == "cidr_block" {
+			refFound = true
+		}
+	}
+	if !refFound {
+		t.Errorf("expected a diagnostic for the internal var ref; got %+v", diags)
+	}
+}
+
+func TestImportDiagnosesRemoteModule(t *testing.T) {
+	files := map[string]string{
+		"main.tf": `
+module "eks" {
+  source = "terraform-aws-modules/eks/aws"
+  version = "20.0.0"
+}
+`,
+	}
+	m, diags, err := Import(files)
+	if err != nil {
+		t.Fatalf("import: %v", err)
+	}
+	if len(m.Modules) != 0 {
+		t.Errorf("remote module must not be resolved: %+v", m.Modules)
+	}
+	msg, found := diagReason(diags, func(d Diagnostic) bool {
+		return strings.Contains(d.Reason, "module") && strings.Contains(d.Reason, "not imported")
+	})
+	if !found {
+		t.Fatalf("expected a module diagnostic; got %+v", diags)
+	}
+	if !strings.Contains(msg, "module") {
+		t.Errorf("reason = %q", msg)
+	}
+}
+
+func TestImportModuleArgumentReferencesCallerResource(t *testing.T) {
+	files := map[string]string{
+		"main.tf": `
+resource "aws_vpc" "main" {
+  cidr_block = "10.0.0.0/16"
+}
+
+module "m" {
+  source = "./modules/m"
+  vpc_id = aws_vpc.main.id
+}
+`,
+		"modules/m/main.tf": `resource "aws_subnet" "s" {}`,
+	}
+	m, _, err := Import(files)
+	if err != nil {
+		t.Fatalf("import: %v", err)
+	}
+	vpc := findAddr(t, m, "aws_vpc", "main")
+	mod := m.Modules[0]
+	ref, ok := mod.Arguments["vpc_id"]
+	if !ok || ref.Kind != graph.KindRef || ref.RefTarget != vpc.ID || ref.RefAttribute != "id" {
+		t.Errorf("module vpc_id = %+v, want ref to %s.id", ref, vpc.ID)
+	}
+}
+
+func TestImportNestedLocalModulesAssignDeepest(t *testing.T) {
+	files := map[string]string{
+		"main.tf": `
+module "a" { source = "./modules/a" }
+module "a_sub" { source = "./modules/a/sub" }
+`,
+		"modules/a/main.tf":     `resource "aws_vpc" "outer" {}`,
+		"modules/a/sub/main.tf": `resource "aws_subnet" "inner" {}`,
+	}
+	m, _, err := Import(files)
+	if err != nil {
+		t.Fatalf("import: %v", err)
+	}
+	if len(m.Modules) != 2 {
+		t.Fatalf("expected 2 modules, got %+v", m.Modules)
+	}
+	var outer, inner *graph.Module
+	for i := range m.Modules {
+		switch m.Modules[i].Source {
+		case "./modules/a":
+			outer = &m.Modules[i]
+		case "./modules/a/sub":
+			inner = &m.Modules[i]
+		}
+	}
+	if outer == nil || inner == nil {
+		t.Fatalf("modules = %+v", m.Modules)
+	}
+	if len(inner.Resources) != 1 || addressOf(m, inner.Resources[0]) != "aws_subnet.inner" {
+		t.Errorf("nested module resources = %+v", inner.Resources)
+	}
+	if len(outer.Resources) != 1 || addressOf(m, outer.Resources[0]) != "aws_vpc.outer" {
+		t.Errorf("outer module resources = %+v", outer.Resources)
+	}
+}
+
+func TestImportSharedLocalModuleGroupsOnce(t *testing.T) {
+	files := map[string]string{
+		"main.tf": `
+module "a" { source = "./modules/m" }
+module "b" { source = "./modules/m" }
+`,
+		"modules/m/main.tf": `resource "aws_vpc" "v" {}`,
+	}
+	m, diags, err := Import(files)
+	if err != nil {
+		t.Fatalf("import: %v", err)
+	}
+	// One container per source dir; both invocations resolve (no diagnostics).
+	if len(m.Modules) != 1 {
+		t.Errorf("expected one shared module container, got %+v", m.Modules)
+	}
+	if _, found := diagReason(diags, func(d Diagnostic) bool { return strings.Contains(d.Reason, "module") }); found {
+		t.Errorf("both invocations resolve; got %+v", diags)
+	}
+}
+
+// diagReason returns the first diagnostic matching pred (and whether one was
+// found), mirroring the small assertions used across the suite.
+func diagReason(diags []Diagnostic, pred func(Diagnostic) bool) (string, bool) {
+	for _, d := range diags {
+		if pred(d) {
+			return d.Reason, true
+		}
+	}
+	return "", false
+}

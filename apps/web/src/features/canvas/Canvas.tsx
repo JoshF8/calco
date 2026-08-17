@@ -24,12 +24,13 @@ import { useCanvasStore, type ResourceNode } from './store';
 import { EXAMPLES } from './examples';
 import { ResourceNode as ResourceNodeView } from './ResourceNode';
 import { ContainerNode } from './ContainerNode';
+import { ModuleNode } from './ModuleNode';
 import { RefEdge } from './RefEdge';
 import { ConnectionHint } from './ConnectionHint';
 import { canNest, nestRule } from './containment';
 import { RESOURCE_DND_MIME } from './dnd';
 
-const nodeTypes: NodeTypes = { resource: ResourceNodeView, container: ContainerNode };
+const nodeTypes: NodeTypes = { resource: ResourceNodeView, container: ContainerNode, module: ModuleNode };
 const edgeTypes: EdgeTypes = { ref: RefEdge };
 
 const MINIMAP = {
