@@ -72,6 +72,11 @@ jobs:
 
       - name: Configure Pages
         uses: actions/configure-pages@v5
+        with:
+          # The repo has never had Pages enabled: let the action create the
+          # site via the API (the token has pages: write) instead of requiring
+          # a manual Settings → Pages step on first deploy.
+          enablement: true
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
