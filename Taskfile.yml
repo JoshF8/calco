@@ -4,11 +4,14 @@ tasks:
   # ─── Top-level orchestration ────────────────────────────────────────────────
   dev:
     desc: Run web and server in parallel
-    deps: [web:dev, server:dev]
+    deps: [wasm:build, web:dev, server:dev]
 
   build:
-    desc: Build web + server
-    deps: [web:build, server:build]
+    desc: Build web + server + WASM engine
+    cmds:
+      - task: wasm:build
+      - task: web:build
+      - task: server:build
 
   lint:
     desc: Lint web + vet server
@@ -86,6 +89,19 @@ tasks:
     dir: apps/server
     cmds:
       - go vet ./...
+
+  # ─── WASM engine (apps/server → apps/web) ─────────────────────────────────
+  # The Go core compiles to a WebAssembly module served as a static asset, so
+  # the whole app (import + generate) runs client-side from a static origin —
+  # GitHub Pages, no infrastructure. The output files are gitignored build
+  # artefacts; regenerate after changing the domain core.
+
+  wasm:build:
+    desc: Build the Go core as WASM into apps/web/public
+    dir: apps/server
+    cmds:
+      - GOOS=js GOARCH=wasm go build -ldflags="-s -w" -o ../web/public/calco.wasm ./cmd/wasm
+      - cp "$(go env GOROOT)/lib/wasm/wasm_exec.js" ../web/public/wasm_exec.js
 
   # ─── Database ───────────────────────────────────────────────────────────────
   # Default DB is SQLite (file-based, no infra).

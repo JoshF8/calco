@@ -67,3 +67,9 @@ terraform.rc
 # running the server, and PRs that change the server API surface
 # show the matching type diff for review.
 apps/server/internal/adapters/outbound/db/generated/
+
+# The in-browser engine is rebuilt by `task wasm:build` (and by the Pages
+# workflow) from apps/server/cmd/wasm; the artefacts land in the web's
+# public/ dir for Vite to serve, and are never committed.
+apps/web/public/calco.wasm
+apps/web/public/wasm_exec.js

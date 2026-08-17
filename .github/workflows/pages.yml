@@ -1,0 +1,83 @@
+name: pages
+
+# Builds the whole app — web + the Go core compiled to WASM — as a purely
+# static site and deploys it to GitHub Pages. No backend: import and generate
+# run inside the browser (`apps/server/cmd/wasm`). The Actions below use major
+# version tags rather than SHAs because they belong to github/actions and are
+# trusted published actions; the rest are pinned like ci.yml.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Pages deployment needs write access to the pages API plus the OIDC token.
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Cancel in-progress deploys when a newer commit on main arrives.
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    name: deploy
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Setup Go
+        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
+        with:
+          go-version: '1.26'
+          cache-dependency-path: apps/server/go.sum
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@d15e628ca66d93ee5f352c71671a7bc6a97af5c9 # v6.0.8
+        with:
+          version: 11.3.0
+          run_install: false
+
+      - name: Setup Node
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # The in-browser engine is a build artefact, never committed: build it
+      # here so the site is static even though the engine is Go.
+      - name: Build WASM engine
+        run: |
+          cd apps/server
+          GOOS=js GOARCH=wasm go build -ldflags="-s -w" -o ../web/public/calco.wasm ./cmd/wasm
+          cp "$(go env GOROOT)/lib/wasm/wasm_exec.js" ../web/public/wasm_exec.js
+
+      # CALCO_BASE pins Vite's base to the project subpath; assets (including
+      # the WASM engine) then resolve under /calco/ on Pages.
+      - name: Build site
+        run: pnpm --filter @calco/web build
+        env:
+          CALCO_BASE: /calco/
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: apps/web/dist
+
+      - name: Deploy to Pages
+        id: deploy
+        uses: actions/deploy-pages@v4

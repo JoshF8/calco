@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useMutation } from '@tanstack/react-query';
 import { Check, Copy, Download, FileCode, Loader2 } from 'lucide-react';
-import { apiClient } from '@/lib/api-client';
+import { ensureEngine, generateHCL } from '@/lib/wasm-core';
 import { Button } from '@/shared/components/ui/button';
 import { useCanvasStore } from '../canvas/store';
 
@@ -16,9 +16,8 @@ export function ExportPanel() {
 
   const mutation = useMutation({
     mutationFn: async (): Promise<Files> => {
-      const { data, error } = await apiClient.POST('/api/v1/generate', { body: toApiModel() });
-      if (error) throw new Error(error.detail ?? 'generation failed');
-      const files = (data?.files ?? {}) as Files;
+      await ensureEngine();
+      const files = generateHCL(toApiModel());
       setActive((prev) => prev && files[prev] !== undefined ? prev : Object.keys(files)[0] ?? null);
       return files;
     },

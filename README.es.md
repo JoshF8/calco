@@ -31,7 +31,8 @@ Qué existe hoy:
 
 - **Greenfield** — canvas → generar → Terraform exportable
 - **Brownfield** — importá una carpeta de Terraform y mirala dibujada; los `module` locales se resuelven como contenedores read-only; lo que no se puede dibujar termina en un reporte de importación agrupado en vez de una pared de errores
-- **Docs** — sistema de marca, documento de arquitectura, 6 ADRs
+- **App estática** — el core de Go se compila a WASM, así el import y el generate corren en el browser y toda la app se publica en GitHub Pages
+- **Docs** — sistema de marca, documento de arquitectura, 7 ADRs
 
 ## Los dos flujos
 
@@ -84,6 +85,7 @@ Detalle completo en [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md). Decisiones y
 | Backend       | Go 1.26, Huma v2, chi v5                                                    |
 | API           | REST + OpenAPI 3.1 (autogenerado por Huma)                                  |
 | Motor HCL     | `hashicorp/hcl/v2` + `hclwrite` (in-process)                                |
+| In-browser    | Core Go compilado a WebAssembly — import y generate corren enteros en el cliente, así la app es un sitio estático (GitHub Pages) |
 | Runner        | Docker (`terraform validate`, `plan -refresh=false`, `graph`) — futuro      |
 | Base de datos | sqlc + goose · pgx (Postgres, hosted) · modernc.org/sqlite (self-host)      |
 | Deploy        | Docker Compose (self-host) · ECS Fargate (hosted)                           |
@@ -96,6 +98,7 @@ Detalle completo en [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md). Decisiones y
 - [x] Graph model y generador de HCL (greenfield)
 - [x] Canvas con React Flow (paleta → generar)
 - [x] Importador brownfield (visualización read-only, módulos locales) — ver [ADR-0006](docs/adr/0006-local-modules.md)
+- [x] Motor in-browser: core de dominio compilado a WASM, publicado en GitHub Pages — ver [ADR-0007](docs/adr/0007-wasm-engine.md)
 - [ ] Resolución de módulos remotos (GithubFetcher + runner)
 - [ ] Sandbox del Terraform runner
 - [ ] MVP self-hosted (Docker Compose)
@@ -112,7 +115,9 @@ cd apps/server && go run ./cmd/server   # API en :8080, referencia de API en /do
 cd apps/web   && pnpm dev               # app en :5173
 ```
 
-Andá a http://localhost:5173 y apretá **Importar** para cargar un repositorio de Terraform local (selector de carpeta). El importador corre enteramente in-process — sin Docker, sin red, sin `terraform init`.
+Andá a http://localhost:5173 y apretá **Importar** para cargar un repositorio de Terraform local (selector de carpeta). El importador corre enteramente in-process — de hecho in-process *en el browser*: el core de Go está compilado a WebAssembly y se sirve como asset estático, así que sin Docker, sin red, sin `terraform init`, y podés tener el server apagado.
+
+Ese mismo build estático es lo que sirve GitHub Pages. `task dev` y `task build` regeneran el motor automáticamente (es un artefacto gitignored); el workflow [pages](.github/workflows/pages.yml) compila web + motor en CI y hace el deploy. El demo en vivo vive en https://joshf8.github.io/calco.
 
 | Propósito          | Comando                    |
 | ------------------ | -------------------------- |
@@ -130,9 +135,13 @@ calco/
 ├── apps/
 │   ├── server/                     # API Go (hexagonal, motor HCL in-process)
 │   │   ├── cmd/server/             # punto de entrada y DI manual
+│   │   ├── cmd/wasm/               # el core de dominio compilado para el browser
 │   │   └── internal/               # config, domain, application, adapters
 │   └── web/                        # frontend React (feature-based)
-│       └── src/features/           # canvas, generate, import, catalog…
+│       ├── public/                 # calco.wasm + wasm_exec.js (compilados, gitignored)
+│       └── src/
+│           ├── features/           # canvas, generate, import, catalog…
+│           └── lib/wasm-core.ts    # bootea el motor in-browser
 ├── docs/
 │   ├── adr/                        # registros de decisiones arquitectónicas
 │   │   ├── 0001-architecture-pattern.md
@@ -140,11 +149,13 @@ calco/
 │   │   ├── 0003-api-and-web-framework.md
 │   │   ├── 0004-data-layer.md
 │   │   ├── 0005-nested-blocks.md
-│   │   └── 0006-local-modules.md
+│   │   ├── 0006-local-modules.md
+│   │   └── 0007-wasm-engine.md
 │   ├── brand/                      # assets del logo + preview
 │   ├── screenshots/                # capturas usadas en este README
 │   ├── ARCHITECTURE.md
 │   └── BRAND.md
+├── .github/workflows/              # ci + openapi-types drift + pages deploy
 ├── Taskfile.yml                    # task dev / build / test / lint
 ├── LICENSE
 ├── README.md
@@ -155,7 +166,7 @@ calco/
 
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — arquitectura del sistema, capas, flujos (en inglés)
 - [`docs/BRAND.md`](docs/BRAND.md) — identidad de marca y sistema de diseño
-- [`docs/adr/`](docs/adr/) — registros de decisiones arquitectónicas (6 hasta ahora, en inglés)
+- [`docs/adr/`](docs/adr/) — registros de decisiones arquitectónicas (7 hasta ahora, en inglés)
 
 ## Licencia
 

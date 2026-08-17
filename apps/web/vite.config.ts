@@ -4,6 +4,10 @@ import tailwindcss from '@tailwindcss/vite';
 import path from 'node:path';
 
 export default defineConfig({
+  // GitHub Pages serves a project site at /<repo>/; the Pages workflow builds
+  // with CALCO_BASE=/calco/ so assets (and the WASM engine) resolve under the
+  // repo path. Dev stays at the root.
+  base: process.env.CALCO_BASE ?? '/',
   plugins: [react(), tailwindcss()],
   resolve: {
     alias: {

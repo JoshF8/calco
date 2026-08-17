@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { useMutation } from '@tanstack/react-query';
 import { FileUp, FolderOpen, Loader2, X } from 'lucide-react';
 import type { components } from '@/lib/types.gen';
-import { apiClient } from '@/lib/api-client';
+import { ensureEngine, importRepo } from '@/lib/wasm-core';
 import { Button } from '@/shared/components/ui/button';
 import { useCanvasStore } from '@/features/canvas/store';
 import { modelToCanvas } from '@/features/canvas/import';
@@ -36,11 +36,11 @@ export function ImportDialog({ onClose }: { onClose: () => void }) {
   const mutation = useMutation({
     mutationFn: async () => {
       const body = { files: { ...files, ...(text.trim() ? { 'pasted.tf': text } : {}) } };
-      const { data, error } = await apiClient.POST('/api/v1/import', { body });
-      if (error) throw new Error(error.detail ?? t('import.errorPrefix'));
-      const { nodes, edges } = modelToCanvas(data.model);
+      await ensureEngine();
+      const { model, diagnostics } = importRepo(body.files);
+      const { nodes, edges } = modelToCanvas(model);
       const placed = await layout(nodes, edges);
-      return { nodes: placed, edges, diagnostics: data.diagnostics ?? [], count: data.model.resources?.length ?? 0 };
+      return { nodes: placed, edges, diagnostics, count: model.resources?.length ?? 0 };
     },
     onSuccess: (r) => {
       loadImported(r.nodes, r.edges);
