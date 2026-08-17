@@ -60,7 +60,16 @@ type Resource struct {
 	Type       string               `json:"type" example:"aws_vpc" doc:"Terraform resource type."`
 	Name       string               `json:"name" example:"main" doc:"Terraform name slug."`
 	Attributes map[string]AttrValue `json:"attributes,omitempty"`
+	Blocks     []Block              `json:"blocks,omitempty" doc:"Nested blocks, in order (e.g. ingress rules on a security group)."`
 	Position   *Position            `json:"position,omitempty"`
+}
+
+// Block is the wire form of graph.Block: a nested HCL block with its own
+// attributes and, recursively, its own nested blocks.
+type Block struct {
+	Type       string               `json:"type" example:"ingress" doc:"Block type label, e.g. ingress, egress, default_action."`
+	Attributes map[string]AttrValue `json:"attributes,omitempty"`
+	Blocks     []Block              `json:"blocks,omitempty"`
 }
 
 // Edge is the wire form of graph.Edge.
@@ -120,6 +129,7 @@ func (m Model) ToDomain() *graph.Model {
 			Type:       r.Type,
 			Name:       r.Name,
 			Attributes: attrs,
+			Blocks:     blocksToDomain(r.Blocks),
 			Position:   pos,
 		}
 	}
@@ -197,6 +207,7 @@ func FromDomain(m *graph.Model) Model {
 			Type:       r.Type,
 			Name:       r.Name,
 			Attributes: attrs,
+			Blocks:     blocksFromDomain(r.Blocks),
 			Position:   pos,
 		}
 	}
@@ -223,6 +234,46 @@ func FromDomain(m *graph.Model) Model {
 			Value:       attrValueFromDomain(o.Value),
 			Description: o.Description,
 			Sensitive:   o.Sensitive,
+		}
+	}
+	return out
+}
+
+// blocksToDomain converts wire blocks into domain blocks, recursively.
+func blocksToDomain(blocks []Block) []graph.Block {
+	if len(blocks) == 0 {
+		return []graph.Block{}
+	}
+	out := make([]graph.Block, len(blocks))
+	for i, b := range blocks {
+		attrs := make(map[string]graph.AttrValue, len(b.Attributes))
+		for k, v := range b.Attributes {
+			attrs[k] = v.toDomain()
+		}
+		out[i] = graph.Block{
+			Type:       b.Type,
+			Attributes: attrs,
+			Blocks:     blocksToDomain(b.Blocks),
+		}
+	}
+	return out
+}
+
+// blocksFromDomain converts domain blocks into wire blocks, recursively.
+func blocksFromDomain(blocks []graph.Block) []Block {
+	if len(blocks) == 0 {
+		return []Block{}
+	}
+	out := make([]Block, len(blocks))
+	for i, b := range blocks {
+		attrs := make(map[string]AttrValue, len(b.Attributes))
+		for k, v := range b.Attributes {
+			attrs[k] = attrValueFromDomain(v)
+		}
+		out[i] = Block{
+			Type:       b.Type,
+			Attributes: attrs,
+			Blocks:     blocksFromDomain(b.Blocks),
 		}
 	}
 	return out

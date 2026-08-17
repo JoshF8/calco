@@ -108,6 +108,17 @@ export interface components {
             /** @description Canonical literal text (when kind=literal); numbers are kept as text to preserve precision. */
             value?: string;
         };
+        Block: {
+            attributes?: {
+                [key: string]: components["schemas"]["AttrValue"];
+            };
+            blocks?: components["schemas"]["Block"][] | null;
+            /**
+             * @description Block type label, e.g. ingress, egress, default_action.
+             * @example ingress
+             */
+            type: string;
+        };
         Diagnostic: {
             address?: string;
             attribute?: string;
@@ -256,6 +267,8 @@ export interface components {
             attributes?: {
                 [key: string]: components["schemas"]["AttrValue"];
             };
+            /** @description Nested blocks, in order (e.g. ingress rules on a security group). */
+            blocks?: components["schemas"]["Block"][] | null;
             /** @description Stable internal resource ID (UUID). */
             id: string;
             /**

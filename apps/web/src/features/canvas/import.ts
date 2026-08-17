@@ -19,7 +19,10 @@
 // assigns them before the graph reaches the store. Known limitation: a
 // visual-only nesting (RDS/LB inside a subnet, which emits no subnet_id) leaves
 // no trace in the Terraform, so those import as free nodes — the information
-// simply isn't there to recover.
+// simply isn't there to recover. Likewise, nested blocks (ingress,
+// default_action, …) are not rendered by the canvas in the MVP: they round-trip
+// through the server model but are dropped when this reconstruction feeds back
+// into the store, matching the read-only imported-project constraint.
 import { MarkerType, type Edge } from '@xyflow/react';
 import type { ApiAttrValue, ApiModel, ResourceNode } from './store';
 import { containerSize, isContainer, nestRule } from './containment';

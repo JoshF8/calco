@@ -208,6 +208,9 @@ func TestModelJSONRoundTrip(t *testing.T) {
 	m := validModel()
 	m.Resources[0].Attributes["int_attr"] = Int(65535)
 	m.Resources[0].Position = Position{X: 12.5, Y: -3.25}
+	m.Resources[0].Blocks = []Block{{Type: "ingress", Attributes: map[string]AttrValue{
+		"from_port": Int(443),
+	}, Blocks: []Block{{Type: "nested"}}}}
 
 	data, err := json.Marshal(m)
 	if err != nil {
@@ -226,5 +229,56 @@ func TestModelJSONRoundTrip(t *testing.T) {
 	}
 	if got.Resources[0].Position.X != 12.5 || got.Resources[0].Position.Y != -3.25 {
 		t.Fatalf("position corrupted: %+v", got.Resources[0].Position)
+	}
+	if len(got.Resources[0].Blocks) != 1 || got.Resources[0].Blocks[0].Type != "ingress" ||
+		got.Resources[0].Blocks[0].Attributes["from_port"].Lit != "443" {
+		t.Fatalf("blocks corrupted across JSON: %+v", got.Resources[0].Blocks)
+	}
+}
+
+func TestAddSetRemoveBlock(t *testing.T) {
+	a := rid("01")
+	m := &Model{Resources: []Resource{
+		{ID: a, Type: "aws_security_group", Name: "web", Attributes: map[string]AttrValue{}},
+	}}
+
+	if err := m.AddBlock(a, Block{Type: "ingress", Attributes: map[string]AttrValue{
+		"from_port": Int(443),
+	}}); err != nil {
+		t.Fatalf("add block: %v", err)
+	}
+	if len(m.Resources[0].Blocks) != 1 {
+		t.Fatalf("block not added: %+v", m.Resources[0].Blocks)
+	}
+	if err := m.AddBlock(a, Block{Type: "x\"\n  injected = \"y"}); !errors.Is(err, ErrInvalidName) {
+		t.Fatalf("invalid block type: err = %v", err)
+	}
+	if err := m.AddBlock(rid("99"), Block{Type: "ingress"}); !errors.Is(err, ErrResourceNotFound) {
+		t.Fatalf("add to missing resource: err = %v", err)
+	}
+
+	// SetBlocks replaces wholesale.
+	if err := m.SetBlocks(a, []Block{{Type: "egress"}}); err != nil {
+		t.Fatalf("set blocks: %v", err)
+	}
+	if len(m.Resources[0].Blocks) != 1 || m.Resources[0].Blocks[0].Type != "egress" {
+		t.Fatalf("set blocks did not replace: %+v", m.Resources[0].Blocks)
+	}
+	if err := m.SetBlocks(a, []Block{{Type: "b\"\n  x = \"y"}}); !errors.Is(err, ErrInvalidName) {
+		t.Fatalf("set invalid block type: err = %v", err)
+	}
+
+	// RemoveBlock deletes one and tolerates out-of-range.
+	if err := m.RemoveBlock(a, 0); err != nil {
+		t.Fatalf("remove block: %v", err)
+	}
+	if len(m.Resources[0].Blocks) != 0 {
+		t.Fatalf("block not removed: %+v", m.Resources[0].Blocks)
+	}
+	if err := m.RemoveBlock(a, 0); err != nil {
+		t.Fatalf("removing out-of-range block should be a no-op: %v", err)
+	}
+	if err := m.RemoveBlock(rid("99"), 0); !errors.Is(err, ErrResourceNotFound) {
+		t.Fatalf("remove on missing resource: err = %v", err)
 	}
 }

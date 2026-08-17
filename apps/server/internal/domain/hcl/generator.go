@@ -37,13 +37,15 @@ type Files map[string]string
 // on the resource, a variable type expression may be nonsensical, and so on.
 //
 // Only non-empty files are returned:
-//   - main.tf       resources, in dependency (topological) order
+//   - main.tf       resources, in dependency (topological) order, with their
+//     nested blocks rendered after their attributes
 //   - providers.tf  a required_providers + provider block per provider prefix
 //   - variables.tf  input variables (omitted if there are none)
 //   - outputs.tf    outputs (omitted if there are none)
 //
-// Output is deterministic: attributes within a block are emitted in
-// alphabetical order, resources in topological-then-model order.
+// Output is deterministic: attributes within a resource or block are emitted
+// in alphabetical order, nested blocks in model (source) order, resources in
+// topological-then-model order.
 func Generate(m *graph.Model) (Files, error) {
 	if err := m.Validate(); err != nil {
 		return nil, fmt.Errorf("hcl: model is not valid: %w", err)
@@ -82,8 +84,24 @@ func renderResources(ordered []graph.Resource, byID map[graph.ResourceID]*graph.
 		}
 		block := body.AppendNewBlock("resource", []string{r.Type, r.Name})
 		setAttributes(block.Body(), r.Attributes, byID)
+		renderBlocks(block.Body(), r.Blocks, byID)
 	}
 	return string(f.Bytes())
+}
+
+// renderBlocks emits nested blocks in model order — order is part of the
+// semantics for repeated blocks (several ingress blocks, a default_action,
+// …), so it is never sorted. Inside each block, attributes are alphabetic and
+// deeper blocks recurse.
+func renderBlocks(body *hclwrite.Body, blocks []graph.Block, byID map[graph.ResourceID]*graph.Resource) {
+	if len(blocks) == 0 {
+		return
+	}
+	for _, b := range blocks {
+		block := body.AppendNewBlock(b.Type, nil)
+		setAttributes(block.Body(), b.Attributes, byID)
+		renderBlocks(block.Body(), b.Blocks, byID)
+	}
 }
 
 func renderProviders(resources []graph.Resource) string {

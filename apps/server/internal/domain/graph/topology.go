@@ -6,29 +6,42 @@ import (
 )
 
 // DeriveEdges computes the dependency edges implied by the Ref values inside
-// resource attributes. This — not the Model.Edges slice — is the
-// authoritative dependency information: Edges exist for the canvas and may be
-// stale or hand-drawn, whereas a Ref is what the generator actually emits.
+// resource attributes and nested blocks. This — not the Model.Edges slice — is
+// the authoritative dependency information: Edges exist for the canvas and may
+// be stale or hand-drawn, whereas a Ref is what the generator actually emits.
 //
-// One edge is produced per (resource, attribute, referenced target). Edges are
-// returned in a deterministic order: by source resource order in the Model,
-// then by attribute name, then by the order refs appear within the value.
+// One edge is produced per (resource, attribute-or-block, referenced target).
+// Edges are returned in a deterministic order: by source resource order in the
+// Model, then by attribute name, then by the order refs appear within the
+// value; block references follow the resource's attributes (in block order).
 func (m *Model) DeriveEdges() []Edge {
 	var edges []Edge
 	for i := range m.Resources {
 		r := &m.Resources[i]
-		attrs := make([]string, 0, len(r.Attributes))
-		for name := range r.Attributes {
-			attrs = append(attrs, name)
-		}
-		sort.Strings(attrs)
-		for _, name := range attrs {
+		for _, name := range sortedKeys(r.Attributes) {
 			for _, target := range r.Attributes[name].walkRefs(nil) {
 				edges = append(edges, Edge{From: r.ID, To: target, Attribute: name})
 			}
 		}
+		for _, b := range r.Blocks {
+			for _, target := range b.walkRefs(nil) {
+				edges = append(edges, Edge{From: r.ID, To: target, Attribute: b.Type})
+			}
+		}
 	}
 	return edges
+}
+
+// sortedKeys returns the map keys in lexical order; every place that iterates
+// an attribute map goes through here so output and edge derivation are
+// deterministic regardless of map iteration order.
+func sortedKeys[V any](m map[string]V) []string {
+	names := make([]string, 0, len(m))
+	for name := range m {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	return names
 }
 
 // CycleError reports a dependency cycle and the resources involved.

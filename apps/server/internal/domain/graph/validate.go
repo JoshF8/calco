@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
-	"sort"
 )
 
 // Terraform identifiers (resource names, variable/output names) must start
@@ -14,6 +13,20 @@ var nameRe = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_-]*$`)
 
 // Terraform resource types are lowercase snake-case, e.g. "aws_vpc".
 var typeRe = regexp.MustCompile(`^[a-z][a-z0-9_]*$`)
+
+// blockPath joins a nested-block lineage ("ingress" → "ingress.rules") for
+// error messages; "" when there is no lineage yet.
+func blockPath(prefix, typ string) string {
+	if prefix == "" {
+		return typ
+	}
+	return prefix + "." + typ
+}
+
+// blockAttrPath names one argument inside a nested block's lineage.
+func blockAttrPath(prefix, typ, name string) string {
+	return blockPath(prefix, typ) + "." + name
+}
 
 // Validate checks every Model invariant and returns all violations joined
 // into a single error (errors.Is matches each underlying sentinel). A nil
@@ -70,12 +83,7 @@ func (m *Model) Validate() error {
 		}
 
 		// Attribute values: well-formed for their kind.
-		names := make([]string, 0, len(r.Attributes))
-		for name := range r.Attributes {
-			names = append(names, name)
-		}
-		sort.Strings(names)
-		for _, name := range names {
+		for _, name := range sortedKeys(r.Attributes) {
 			// Attribute keys are emitted as bare HCL argument names with no
 			// escaping, so they must be valid identifiers.
 			if !nameRe.MatchString(name) {
@@ -85,20 +93,44 @@ func (m *Model) Validate() error {
 				errs = append(errs, fmt.Errorf("%w: %s.%s", ErrInvalidValue, r.Address(), name))
 			}
 		}
+
+		// Nested blocks: type is a valid identifier, every attribute
+		// well-formed, recursively.
+		var walkBlocks func(prefix string, blocks []Block)
+		walkBlocks = func(prefix string, blocks []Block) {
+			for _, b := range blocks {
+				if !nameRe.MatchString(b.Type) {
+					errs = append(errs, fmt.Errorf("%w: block type %q on %s", ErrInvalidName, b.Type, r.Address()))
+				}
+				for _, name := range sortedKeys(b.Attributes) {
+					if !nameRe.MatchString(name) {
+						errs = append(errs, fmt.Errorf("%w: block attribute key %q on %s.%s", ErrInvalidName, name, r.Address(), blockPath(prefix, b.Type)))
+					}
+					if !b.Attributes[name].Valid() {
+						errs = append(errs, fmt.Errorf("%w: %s.%s", ErrInvalidValue, r.Address(), blockAttrPath(prefix, b.Type, name)))
+					}
+				}
+				walkBlocks(blockPath(prefix, b.Type), b.Blocks)
+			}
+		}
+		walkBlocks("", r.Blocks)
 	}
 
-	// References (in attributes, outputs, variable defaults) must resolve.
+	// References (in attributes, blocks, outputs, variable defaults) must
+	// resolve.
 	for i := range m.Resources {
 		r := &m.Resources[i]
-		names := make([]string, 0, len(r.Attributes))
-		for name := range r.Attributes {
-			names = append(names, name)
-		}
-		sort.Strings(names)
-		for _, name := range names {
+		for _, name := range sortedKeys(r.Attributes) {
 			for _, target := range r.Attributes[name].walkRefs(nil) {
 				if !ids[target] {
 					errs = append(errs, fmt.Errorf("%w: %s.%s -> %s", ErrDanglingReference, r.Address(), name, target))
+				}
+			}
+		}
+		for _, b := range r.Blocks {
+			for _, target := range b.walkRefs(nil) {
+				if !ids[target] {
+					errs = append(errs, fmt.Errorf("%w: %s.%s -> %s", ErrDanglingReference, r.Address(), b.Type, target))
 				}
 			}
 		}

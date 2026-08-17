@@ -44,6 +44,9 @@ func (m *Model) AddResource(r Resource) error {
 	if r.Attributes == nil {
 		r.Attributes = map[string]AttrValue{}
 	}
+	if r.Blocks == nil {
+		r.Blocks = []Block{}
+	}
 	m.Resources = append(m.Resources, r)
 	return nil
 }
@@ -156,5 +159,58 @@ func (m *Model) RemoveAttribute(id ResourceID, name string) error {
 		return fmt.Errorf("%w: %s", ErrResourceNotFound, id)
 	}
 	delete(r.Attributes, name)
+	return nil
+}
+
+// AddBlock appends a nested block to a resource, rejecting blocks whose type
+// label is not a valid identifier. Deeper validation (attribute values and
+// references) is Validate's job: like SetAttribute, this guards only what an
+// addition can violate locally.
+func (m *Model) AddBlock(id ResourceID, b Block) error {
+	r, ok := m.FindResource(id)
+	if !ok {
+		return fmt.Errorf("%w: %s", ErrResourceNotFound, id)
+	}
+	if !nameRe.MatchString(b.Type) {
+		return fmt.Errorf("%w: block type %q", ErrInvalidName, b.Type)
+	}
+	if r.Blocks == nil {
+		r.Blocks = []Block{}
+	}
+	r.Blocks = append(r.Blocks, b)
+	return nil
+}
+
+// SetBlocks replaces a resource's nested blocks wholesale, rejecting any block
+// whose type label is not a valid identifier. The importer uses this to
+// install a resource's complete block set after parsing.
+func (m *Model) SetBlocks(id ResourceID, blocks []Block) error {
+	r, ok := m.FindResource(id)
+	if !ok {
+		return fmt.Errorf("%w: %s", ErrResourceNotFound, id)
+	}
+	for _, b := range blocks {
+		if !nameRe.MatchString(b.Type) {
+			return fmt.Errorf("%w: block type %q", ErrInvalidName, b.Type)
+		}
+	}
+	if blocks == nil {
+		blocks = []Block{}
+	}
+	r.Blocks = blocks
+	return nil
+}
+
+// RemoveBlock deletes the i-th nested block of a resource. Removing an
+// out-of-range index is a no-op, mirroring RemoveAttribute's tolerance.
+func (m *Model) RemoveBlock(id ResourceID, i int) error {
+	r, ok := m.FindResource(id)
+	if !ok {
+		return fmt.Errorf("%w: %s", ErrResourceNotFound, id)
+	}
+	if i < 0 || i >= len(r.Blocks) {
+		return nil
+	}
+	r.Blocks = append(r.Blocks[:i], r.Blocks[i+1:]...)
 	return nil
 }

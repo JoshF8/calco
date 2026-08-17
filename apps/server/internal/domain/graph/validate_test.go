@@ -136,6 +136,42 @@ func TestValidateFailures(t *testing.T) {
 			},
 			ErrInvalidName,
 		},
+		{
+			"injection via block type",
+			func(m *Model) {
+				m.Resources[0].Blocks = []Block{{Type: "x\"\n  injected = \"y"}}
+			},
+			ErrInvalidName,
+		},
+		{
+			"dangling reference inside block",
+			func(m *Model) {
+				m.Resources[0].Blocks = []Block{{Type: "ingress", Attributes: map[string]AttrValue{
+					"vpc_id": Ref(rid("ff"), "id"),
+				}}}
+			},
+			ErrDanglingReference,
+		},
+		{
+			"invalid value inside block",
+			func(m *Model) {
+				m.Resources[0].Blocks = []Block{{Type: "ingress", Attributes: map[string]AttrValue{
+					"from_port": AttrValue{Kind: KindLiteral, LitType: LitNumber, Lit: "xyz"},
+				}}}
+			},
+			ErrInvalidValue,
+		},
+		{
+			"cycle through a block",
+			func(m *Model) {
+				// subnet's vpc_id (existing) plus a block ref back on the vpc:
+				// vpc → subnet (through block), subnet → vpc (attribute).
+				m.Resources[0].Blocks = []Block{{Type: "rule", Attributes: map[string]AttrValue{
+					"target": Ref(m.Resources[1].ID, "id"),
+				}}}
+			},
+			ErrCycle,
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

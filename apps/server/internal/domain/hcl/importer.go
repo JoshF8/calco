@@ -14,10 +14,16 @@ package hcl
 // resolves each attribute's traversals against that index. This is exactly
 // renderValue in generator.go run backwards.
 //
-// Anything Import cannot faithfully represent — nested blocks, references to
-// var/local/data/module, function calls, interpolations, count/for_each — is
-// reported as a Diagnostic and skipped, never guessed. A non-nil error means
-// the HCL did not parse at all; valid-but-unsupported input yields diagnostics.
+// Resources' nested blocks (ingress, egress, default_action, ebs_block_device,
+// …) are converted recursively into graph.Block values in source order;
+// label-bearing blocks (dynamic, provisioner) are not yet modeled and are
+// diagnosed rather than guessed.
+//
+// Anything Import cannot faithfully represent — label-bearing or
+// structural blocks, references to var/local/data/module, function calls,
+// interpolations, count/for_each — is reported as a Diagnostic and skipped,
+// never guessed. A non-nil error means the HCL did not parse at all;
+// valid-but-unsupported input yields diagnostics.
 
 import (
 	"fmt"
@@ -115,9 +121,19 @@ func Import(files map[string]string) (*graph.Model, []Diagnostic, error) {
 		addr := addressOf(model, pr.id)
 		src := []byte(files[pr.file])
 
-		// Nested blocks (ingress {}, vpc_config {}, …) aren't modeled yet.
-		for _, nb := range pr.block.Body.Blocks {
-			diags = append(diags, Diagnostic{File: pr.file, Address: addr, Attribute: nb.Type, Reason: "nested block not modeled yet"})
+		// Nested blocks (ingress {}, vpc_config {}, ebs_block_device {}, …):
+		// convert each recursively into a graph.Block, keeping source order and
+		// reporting — never guessing — anything its contents cannot represent.
+		blocks, blockDiags := convertBlocks(src, pr.block.Body.Blocks, index)
+		for i := range blockDiags {
+			d := &blockDiags[i]
+			d.File, d.Address = pr.file, addr
+		}
+		diags = append(diags, blockDiags...)
+		if len(blocks) > 0 {
+			if err := model.SetBlocks(pr.id, blocks); err != nil {
+				diags = append(diags, Diagnostic{File: pr.file, Address: addr, Reason: err.Error()})
+			}
 		}
 
 		attrNames := make([]string, 0, len(pr.block.Body.Attributes))
@@ -149,6 +165,84 @@ func addressOf(m *graph.Model, id graph.ResourceID) string {
 		return r.Address()
 	}
 	return ""
+}
+
+// convertBlocks converts a list of nested HCL blocks into graph.Blocks,
+// preserving source order. Each block is converted recursively; any construct
+// inside a block that cannot be represented is reported as a Diagnostic and
+// skipped, never guessed. Diagnostics carry only Reason and a block-path
+// Attribute; the caller fills in File/Address.
+func convertBlocks(src []byte, blocks hclsyntax.Blocks, index map[string]graph.ResourceID) ([]graph.Block, []Diagnostic) {
+	var out []graph.Block
+	var diags []Diagnostic
+	for _, nb := range blocks {
+		b, d := convertBlock(src, nb, index)
+		if b != nil {
+			out = append(out, *b)
+		}
+		diags = append(diags, d...)
+	}
+	return out, diags
+}
+
+// convertBlock converts one nested block, returning (nil, diags) when the
+// block must be skipped entirely. Blocks with labels (the dynamic and
+// provisioner/connection forms) are skipped: a graph.Block has no label field,
+// so preserving them would require guessing the label's role. Each attribute
+// and sub-block recurses through the same conversion the resource body uses,
+// so references resolve against the same address index.
+func convertBlock(src []byte, blk *hclsyntax.Block, index map[string]graph.ResourceID) (*graph.Block, []Diagnostic) {
+	if len(blk.Labels) > 0 {
+		return nil, []Diagnostic{{
+			Attribute: blk.Type,
+			Reason:    fmt.Sprintf("%q block with labels not supported yet", blk.Type),
+		}}
+	}
+
+	var diags []Diagnostic
+	out := graph.Block{Type: blk.Type, Attributes: map[string]graph.AttrValue{}}
+	for _, an := range sortedKeys(blk.Body.Attributes) {
+		val, d := convertExpr(blk.Body.Attributes[an].Expr, src, index)
+		if d != nil {
+			d.Attribute = blockAttrPath(blk.Type, an)
+			diags = append(diags, *d)
+			continue
+		}
+		out.Attributes[an] = val
+	}
+	sub, subDiags := convertBlocks(src, blk.Body.Blocks, index)
+	if len(subDiags) > 0 {
+		for i := range subDiags {
+			// Prepend the parent block to the nested block's path.
+			d := &subDiags[i]
+			if d.Attribute == "" {
+				d.Attribute = blk.Type
+			} else {
+				d.Attribute = blk.Type + "." + d.Attribute
+			}
+		}
+		diags = append(diags, subDiags...)
+	}
+	if len(sub) > 0 {
+		out.Blocks = sub
+	}
+	return &out, diags
+}
+
+// blockAttrPath names one argument inside a nested block's lineage.
+func blockAttrPath(typ, name string) string {
+	return typ + "." + name
+}
+
+// sortedKeys returns the attribute map's keys in lexical order so block
+// conversion is deterministic regardless of map iteration order.
+func sortedKeys[V any](m map[string]V) []string {
+	names := make([]string, 0, len(m))
+	for n := range m {
+		names = append(names, n)
+	}
+	sort.Strings(names)
+	return names
 }
 
 // convertExpr turns one HCL expression into an AttrValue, or returns a

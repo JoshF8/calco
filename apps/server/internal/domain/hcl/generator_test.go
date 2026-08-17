@@ -141,6 +141,66 @@ func TestGenerateProvidersDerivedFromResources(t *testing.T) {
 	}
 }
 
+func TestGenerateNestedBlocks(t *testing.T) {
+	sg := rid("01")
+	lb := rid("02")
+	tg := rid("03")
+	m := &graph.Model{Resources: []graph.Resource{
+		// Deliberately listed last so the generator must order it before its
+		// depender despite model order.
+		{ID: tg, Type: "aws_lb_target_group", Name: "web", Attributes: map[string]graph.AttrValue{
+			"port": graph.Int(80),
+		}},
+		{ID: lb, Type: "aws_lb", Name: "front", Attributes: map[string]graph.AttrValue{}},
+		{ID: sg, Type: "aws_security_group", Name: "web", Blocks: []graph.Block{
+			{
+				Type: "ingress",
+				Attributes: map[string]graph.AttrValue{
+					"from_port":   graph.Int(443),
+					"protocol":    graph.String("tcp"),
+					"cidr_blocks": graph.List(graph.String("0.0.0.0/0")),
+				},
+			},
+		}},
+		{ID: rid("04"), Type: "aws_lb_listener", Name: "http", Attributes: map[string]graph.AttrValue{
+			"load_balancer_arn": graph.Ref(lb, "arn"),
+			"port":              graph.Int(80),
+		}, Blocks: []graph.Block{
+			{
+				Type: "default_action",
+				Attributes: map[string]graph.AttrValue{
+					"type":             graph.String("forward"),
+					"target_group_arn": graph.Ref(tg, "arn"),
+				},
+			},
+		}},
+	}}
+	files, err := Generate(m)
+	if err != nil {
+		t.Fatalf("generate: %v", err)
+	}
+	main := files["main.tf"]
+	if err := Parse("main.tf", main); err != nil {
+		t.Fatalf("nested blocks produced invalid HCL: %v\n%s", err, main)
+	}
+	// Block renders after its resource's attributes, nested content present.
+	if !strings.Contains(main, `ingress {`) {
+		t.Fatalf("ingress block missing; main.tf:\n%s", main)
+	}
+	if !strings.Contains(main, `"0.0.0.0/0"`) {
+		t.Fatalf("block attribute literal missing; main.tf:\n%s", main)
+	}
+	if !strings.Contains(main, "target_group_arn = aws_lb_target_group.web.arn") {
+		t.Fatalf("block reference not emitted bare; main.tf:\n%s", main)
+	}
+	// A reference inside a block orders the dependency first.
+	tgAt := strings.Index(main, `resource "aws_lb_target_group" "web"`)
+	lisAt := strings.Index(main, `resource "aws_lb_listener" "http"`)
+	if tgAt == -1 || lisAt == -1 || tgAt > lisAt {
+		t.Fatalf("target group must precede the listener whose block references it; main.tf:\n%s", main)
+	}
+}
+
 func TestGenerateListWithMixedItems(t *testing.T) {
 	vpc := rid("01")
 	other := rid("03")

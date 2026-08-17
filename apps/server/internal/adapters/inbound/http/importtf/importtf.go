@@ -41,7 +41,7 @@ func Register(api huma.API, uc *appimporttf.ImportTerraform) {
 		Method:      http.MethodPost,
 		Path:        "/api/v1/import",
 		Summary:     "Import Terraform into a graph model",
-		Description: "Parses Terraform source statically (no terraform binary) into a graph model. It reads resource blocks, scalar literals, references between resources, and lists of those. Anything it cannot yet represent — nested blocks, references to var/data/module, functions, count/for_each — is returned as a diagnostic and skipped, never guessed. A 422 is returned only when the HCL does not parse.",
+		Description: "Parses Terraform source statically (no terraform binary) into a graph model. It reads resource blocks, scalar literals, references between resources, lists of those, and nested blocks (ingress, default_action, ebs_block_device, …) in source order. Anything it cannot yet represent — label-bearing blocks such as dynamic/provisioner, references to var/data/module, functions, count/for_each — is returned as a diagnostic and skipped, never guessed. A 422 is returned only when the HCL does not parse.",
 		Tags:        []string{"Import"},
 	}, func(_ context.Context, in *importInput) (*importOutput, error) {
 		model, diags, err := uc.Execute(in.Body.Files)

@@ -2,6 +2,7 @@ package hcl
 
 import (
 	"reflect"
+	"sort"
 	"strings"
 	"testing"
 
@@ -139,6 +140,127 @@ func TestImportReferencesResolveAcrossFiles(t *testing.T) {
 	}
 }
 
+func TestImportNestedBlocks(t *testing.T) {
+	src := `
+resource "aws_security_group" "web" {
+  name   = "web-sg"
+  vpc_id = aws_vpc.main.id
+
+  ingress {
+    description = "HTTPS from anywhere"
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+}
+
+resource "aws_vpc" "main" {
+  cidr_block = "10.0.0.0/16"
+}
+
+resource "aws_lb_listener" "http" {
+  load_balancer_arn = aws_lb.front.arn
+  port              = 80
+  protocol          = "HTTP"
+
+  default_action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.web.arn
+  }
+}
+
+resource "aws_lb" "front" {}
+resource "aws_lb_target_group" "web" {}
+`
+	m, diags, err := Import(map[string]string{"main.tf": src})
+	if err != nil {
+		t.Fatalf("import: %v", err)
+	}
+	if len(diags) != 0 {
+		t.Fatalf("unexpected diagnostics: %+v", diags)
+	}
+
+	sg := findAddr(t, m, "aws_security_group", "web")
+	if len(sg.Blocks) != 2 {
+		t.Fatalf("want 2 blocks on web, got %+v", sg.Blocks)
+	}
+	if got := sg.Blocks[0].Type; got != "ingress" {
+		t.Fatalf("block[0].Type = %q, want ingress", got)
+	}
+	if got := sg.Blocks[0].Attributes["from_port"].Lit; got != "443" {
+		t.Errorf("ingress.from_port = %q, want 443", got)
+	}
+	// A reference inside a block resolves against the same index.
+	vpc := findAddr(t, m, "aws_vpc", "main")
+	if ref := sg.Attributes["vpc_id"].RefTarget; ref != vpc.ID {
+		t.Errorf("vpc_id ref = %v, want %s", ref, vpc.ID)
+	}
+	cidrs := sg.Blocks[1].Attributes["cidr_blocks"]
+	if cidrs.Kind != graph.KindList || len(cidrs.Items) != 1 {
+		t.Errorf("egress.cidr_blocks = %+v", cidrs)
+	}
+
+	// Nested-block references create real dependencies (lb before listener).
+	l := findAddr(t, m, "aws_lb_listener", "http")
+	if len(l.Blocks) != 1 || l.Blocks[0].Type != "default_action" {
+		t.Fatalf("default_action not imported: %+v", l.Blocks)
+	}
+	act := l.Blocks[0].Attributes["target_group_arn"]
+	if act.Kind != graph.KindRef {
+		t.Fatalf("default_action.target_group_arn = %+v, want ref", act)
+	}
+	tg := findAddr(t, m, "aws_lb_target_group", "web")
+	if act.RefTarget != tg.ID || act.RefAttribute != "arn" {
+		t.Errorf("target_group_arn ref = %+v, want %s .arn", act, tg.ID)
+	}
+	// The imported model preserves block references in DeriveEdges.
+	found := false
+	for _, e := range m.DeriveEdges() {
+		if e.From == l.ID && e.To == tg.ID {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("no edge from listener to target group; got %+v", m.DeriveEdges())
+	}
+}
+
+func TestImportLabeledBlocksAreDiagnosed(t *testing.T) {
+	src := `
+resource "aws_security_group" "web" {
+  name = "web-sg"
+
+  dynamic "ingress" {
+    for_each = var.ports
+    content {
+      protocol = "tcp"
+    }
+  }
+}
+`
+	_, diags, err := Import(map[string]string{"main.tf": src})
+	if err != nil {
+		t.Fatalf("import: %v", err)
+	}
+	found := false
+	for _, d := range diags {
+		if strings.Contains(d.Reason, "dynamic") && strings.Contains(d.Reason, "labels") {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("expected a label diagnostic for dynamic ingress; got %+v", diags)
+	}
+}
+
 func TestImportDiagnosesUnsupportedConstructs(t *testing.T) {
 	src := `
 resource "aws_s3_bucket" "b" {
@@ -149,6 +271,7 @@ resource "aws_s3_bucket" "b" {
 
   lifecycle_rule {
     enabled = true
+    prefix  = "logs/"
   }
 }
 
@@ -166,13 +289,20 @@ variable "region" {
 	if len(b.Attributes) != 1 || b.Attributes["bucket"].Lit != "my-bucket" {
 		t.Errorf("expected only bucket attribute, got %+v", b.Attributes)
 	}
+	// The nested block imports (not a bare attribute), preserving its order.
+	if len(b.Blocks) != 1 || b.Blocks[0].Type != "lifecycle_rule" {
+		t.Fatalf("expected lifecycle_rule block, got %+v", b.Blocks)
+	}
+	if got := b.Blocks[0].Attributes["enabled"].Lit; got != "true" {
+		t.Errorf("lifecycle_rule.enabled = %+v, want literal true", b.Blocks[0].Attributes["enabled"])
+	}
 
 	// Each unsupported construct is reported, not silently dropped.
 	reasons := map[string]bool{}
 	for _, d := range diags {
 		reasons[d.Attribute] = true
 	}
-	for _, want := range []string{"tags", "policy", "region", "lifecycle_rule"} {
+	for _, want := range []string{"tags", "policy", "region"} {
 		if !reasons[want] {
 			t.Errorf("missing diagnostic for %q; got %+v", want, diags)
 		}
@@ -216,17 +346,49 @@ func canonVal(m *graph.Model, v graph.AttrValue) string {
 	return "?"
 }
 
-// canonModel reduces a model to address -> attribute -> canonical value, which
-// is invariant under the ID remapping an import performs.
-func canonModel(m *graph.Model) map[string]map[string]string {
-	out := map[string]map[string]string{}
+// canonBlock reduces a block to "type{attr:val,…}[sub…]" in block/attribute
+// order, so block round-trips are compared structurally.
+func canonBlock(m *graph.Model, b graph.Block) string {
+	attrs := make([]string, 0, len(b.Attributes))
+	for name, v := range b.Attributes {
+		attrs = append(attrs, name+"="+canonVal(m, v))
+	}
+	sort.Strings(attrs)
+	var sb strings.Builder
+	sb.WriteString(b.Type)
+	sb.WriteString("{")
+	sb.WriteString(strings.Join(attrs, ","))
+	sb.WriteString("}")
+	for _, sub := range b.Blocks {
+		sb.WriteString("[" + canonBlock(m, sub) + "]")
+	}
+	return sb.String()
+}
+
+// canonModel reduces a model to address -> (attributes, blocks), which is
+// invariant under the ID remapping an import performs.
+func canonModel(m *graph.Model) map[string]struct {
+	Attrs  map[string]string
+	Blocks []string
+} {
+	out := map[string]struct {
+		Attrs  map[string]string
+		Blocks []string
+	}{}
 	for i := range m.Resources {
 		r := &m.Resources[i]
 		am := map[string]string{}
 		for k, v := range r.Attributes {
 			am[k] = canonVal(m, v)
 		}
-		out[r.Address()] = am
+		blocks := make([]string, len(r.Blocks))
+		for j, b := range r.Blocks {
+			blocks[j] = canonBlock(m, b)
+		}
+		out[r.Address()] = struct {
+			Attrs  map[string]string
+			Blocks []string
+		}{Attrs: am, Blocks: blocks}
 	}
 	return out
 }
@@ -247,6 +409,15 @@ func TestImportRoundTripsGeneratedHCL(t *testing.T) {
 			}},
 			{ID: sg, Type: "aws_security_group", Name: "web", Attributes: map[string]graph.AttrValue{
 				"name": graph.String("web"),
+			}, Blocks: []graph.Block{
+				{
+					Type: "ingress",
+					Attributes: map[string]graph.AttrValue{
+						"from_port":   graph.Int(443),
+						"protocol":    graph.String("tcp"),
+						"cidr_blocks": graph.List(graph.String("0.0.0.0/0")),
+					},
+				},
 			}},
 			{ID: rid("04"), Type: "aws_instance", Name: "web", Attributes: map[string]graph.AttrValue{
 				"instance_type":          graph.String("t3.micro"),

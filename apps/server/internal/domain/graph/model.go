@@ -20,8 +20,65 @@ type Resource struct {
 	Name string `json:"name"`
 	// Attributes are the resource's arguments, keyed by HCL argument name.
 	Attributes map[string]AttrValue `json:"attributes"`
+	// Blocks are the resource's nested blocks, in order. Nested blocks are
+	// distinct from attributes: they repeat (e.g. several ingress blocks on a
+	// security group), carry order, and may themselves contain blocks.
+	Blocks []Block `json:"blocks"`
 	// Position is the canvas placement.
 	Position Position `json:"position"`
+}
+
+// Block is a nested HCL block inside a resource — e.g. an ingress block on an
+// aws_security_group, a default_action on an aws_lb_listener, or an
+// ebs_block_device on an aws_instance. Blocks are ordered and repeatable, so
+// they live in their own slice rather than in the attribute map. Blocks can
+// nest arbitrarily deep (a block's body contains its own attributes and
+// blocks), which is how nested structures like aws_lb_listener's default_action
+// forwarding blocks are expressed.
+type Block struct {
+	// Type is the block type label, e.g. "ingress", "default_action".
+	// Terraform block types are bare identifiers, exactly like attribute
+	// names, so nameRe gates them against injection into generated HCL.
+	Type string `json:"type"`
+	// Attributes are the block's arguments, keyed by HCL argument name.
+	Attributes map[string]AttrValue `json:"attributes"`
+	// Blocks are this block's nested blocks, in order.
+	Blocks []Block `json:"blocks"`
+}
+
+// walkRefs appends every ResourceID referenced anywhere in this block — its
+// own attribute values and its nested blocks' — in deterministic order:
+// blocks in slice order, attributes in sorted-name order.
+func (b Block) walkRefs(dst []ResourceID) []ResourceID {
+	for _, name := range sortedKeys(b.Attributes) {
+		dst = b.Attributes[name].walkRefs(dst)
+	}
+	for i := range b.Blocks {
+		dst = b.Blocks[i].walkRefs(dst)
+	}
+	return dst
+}
+
+// valid reports whether the block is safe to hand to the HCL generator: a
+// valid identifier as its type label, every attribute key a valid identifier
+// with a well-formed value, and every nested block valid. Reference targets
+// are not checked here (they may point forward in the model; Validate resolves
+// them after the whole model is known).
+func (b Block) valid() bool {
+	if !nameRe.MatchString(b.Type) {
+		return false
+	}
+	for name, v := range b.Attributes {
+		if !nameRe.MatchString(name) || !v.Valid() {
+			return false
+		}
+	}
+	for i := range b.Blocks {
+		if !b.Blocks[i].valid() {
+			return false
+		}
+	}
+	return true
 }
 
 // Address returns the Terraform address "type.name" (e.g. "aws_vpc.main").
