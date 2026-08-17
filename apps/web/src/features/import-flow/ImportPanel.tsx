@@ -1,19 +1,21 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useMutation } from '@tanstack/react-query';
-import { FileUp, Loader2, X } from 'lucide-react';
+import { FileUp, FolderOpen, Loader2, X } from 'lucide-react';
 import type { components } from '@/lib/types.gen';
 import { apiClient } from '@/lib/api-client';
 import { Button } from '@/shared/components/ui/button';
 import { useCanvasStore } from '@/features/canvas/store';
 import { modelToCanvas } from '@/features/canvas/import';
 import { layout } from '@/features/canvas/layout';
+import { collectTfFiles } from './import-files';
 
 type Diagnostic = components['schemas']['Diagnostic'];
 
-// The import dialog: paste Terraform or add .tf files, send them to the static
-// importer, reconstruct the canvas from the returned model, lay it out, and
-// load it. Diagnostics (what the parser couldn't represent) are shown honestly.
+// The import dialog: paste Terraform, add .tf files, or drop/choose a whole
+// project folder; then send them to the static importer, reconstruct the canvas
+// from the returned model, lay it out, and load it. Diagnostics (what the
+// parser couldn't represent) are shown honestly.
 export function ImportDialog({ onClose }: { onClose: () => void }) {
   const { t } = useTranslation();
   const loadImported = useCanvasStore((s) => s.loadImported);
@@ -39,14 +41,36 @@ export function ImportDialog({ onClose }: { onClose: () => void }) {
     },
   });
 
+  /** Adds every .tf file to the pending set, keyed by its path when one exists
+   * (webkitRelativePath for folder picks/drops, so main.tf in two different
+   * modules/ dirs stays distinct) and by name otherwise. */
+  const absorbFiles = async (picked: FileList | File[]) => {
+    const next = await collectTfFiles(picked, files);
+    setFiles((prev) => ({ ...prev, ...next }));
+  };
+
   const onPick = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const picked = e.target.files;
     if (!picked) return;
-    const next: Record<string, string> = {};
-    for (const f of Array.from(picked)) next[f.name] = await f.text();
-    setFiles((prev) => ({ ...prev, ...next }));
+    await absorbFiles(picked);
     e.target.value = ''; // allow re-picking the same file
   };
+
+  const onDrop = async (e: React.DragEvent) => {
+    e.preventDefault();
+    const dropped = e.dataTransfer.files;
+    if (!dropped || dropped.length === 0) return;
+    await absorbFiles(dropped);
+  };
+
+  /** Non-standard folder-picker attribute React's types don't know about. */
+  const folderInputProps = {
+    type: 'file',
+    webkitdirectory: '',
+    multiple: true,
+    onChange: onPick,
+    className: 'sr-only',
+  } as React.InputHTMLAttributes<HTMLInputElement>;
 
   return (
     <div
@@ -74,32 +98,48 @@ export function ImportDialog({ onClose }: { onClose: () => void }) {
 
           {!result && (
             <>
-              <textarea
-                autoFocus
-                value={text}
-                onChange={(e) => setText(e.target.value)}
-                placeholder={t('import.paste')}
-                spellCheck={false}
-                className="h-48 w-full resize-y rounded-md border bg-background px-3 py-2 font-mono text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              />
-              <div className="flex flex-wrap items-center gap-2">
-                <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs hover:bg-secondary">
-                  <FileUp className="h-3.5 w-3.5" />
-                  {t('import.addFiles')}
-                  <input type="file" accept=".tf" multiple onChange={onPick} className="sr-only" />
-                </label>
-                {pickedNames.map((name) => (
-                  <span key={name} className="inline-flex items-center gap-1 rounded-md bg-secondary px-2 py-1 font-mono text-[11px]">
-                    {name}
-                    <button
-                      onClick={() => setFiles((prev) => { const n = { ...prev }; delete n[name]; return n; })}
-                      aria-label={`${t('import.cancel')}: ${name}`}
-                      className="text-muted-foreground hover:text-destructive"
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
-                  </span>
-                ))}
+              <div
+                role="group"
+                aria-label={t('import.dropZone')}
+                onDragOver={(e) => { e.preventDefault(); }}
+                onDrop={onDrop}
+                className="flex min-h-0 flex-col gap-3"
+              >
+                <textarea
+                  autoFocus
+                  value={text}
+                  onChange={(e) => setText(e.target.value)}
+                  placeholder={t('import.paste')}
+                  spellCheck={false}
+                  className="h-48 w-full resize-y rounded-md border bg-background px-3 py-2 font-mono text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                />
+                <div className="flex flex-wrap items-center gap-2">
+                  <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs hover:bg-secondary">
+                    <FileUp className="h-3.5 w-3.5" />
+                    {t('import.addFiles')}
+                    <input type="file" accept=".tf" multiple onChange={onPick} className="sr-only" />
+                  </label>
+                  <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs hover:bg-secondary">
+                    <FolderOpen className="h-3.5 w-3.5" />
+                    {t('import.addFolder')}
+                    {/* webkitdirectory is the only cross-browser way to pick a
+                        whole project folder in Chrome/Edge. absorbFiles filters
+                        to .tf files regardless of what the OS allows to pick. */}
+                    <input {...folderInputProps} />
+                  </label>
+                  {pickedNames.map((name) => (
+                    <span key={name} className="inline-flex items-center gap-1 rounded-md bg-secondary px-2 py-1 font-mono text-[11px]">
+                      {name}
+                      <button
+                        onClick={() => setFiles((prev) => { const n = { ...prev }; delete n[name]; return n; })}
+                        aria-label={`${t('import.cancel')}: ${name}`}
+                        className="text-muted-foreground hover:text-destructive"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </span>
+                  ))}
+                </div>
               </div>
             </>
           )}

@@ -164,9 +164,11 @@
   "import": {
     "button": "Importar",
     "title": "Importar Terraform",
-    "hint": "Pegá tu Terraform o agregá archivos .tf. calco lo dibuja; editar y reexportar regenera HCL limpio — no el formato original.",
+    "hint": "Pegá tu Terraform, agregá archivos .tf o elegí/arrastrá una carpeta de proyecto completa (captura todos los .tf adentro, módulos locales incluidos). calco lo dibuja; editar y reexportar regenera HCL limpio — no el formato original.",
     "paste": "Pegá .tf acá…",
     "addFiles": "Agregar archivos .tf",
+    "addFolder": "Elegir carpeta",
+    "dropZone": "Archivos de import: pegá texto, elegí archivos o soltá una carpeta completa sobre esta zona",
     "action": "Importar",
     "cancel": "Cancelar",
     "done": "Ver en el canvas",

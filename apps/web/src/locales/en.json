@@ -164,9 +164,11 @@
   "import": {
     "button": "Import",
     "title": "Import Terraform",
-    "hint": "Paste your Terraform or add .tf files. calco draws it; editing and re-exporting regenerates clean HCL — not the original formatting.",
+    "hint": "Paste your Terraform, add .tf files, or pick/drop a whole project folder (grabs every .tf inside, local modules included). calco draws it; editing and re-exporting regenerates clean HCL — not the original formatting.",
     "paste": "Paste .tf here…",
     "addFiles": "Add .tf files",
+    "addFolder": "Choose folder",
+    "dropZone": "Import files: paste text, pick files, or drop a whole folder on this zone",
     "action": "Import",
     "cancel": "Cancel",
     "done": "Show on canvas",
