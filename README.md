@@ -99,7 +99,8 @@ calco/
 │   │   ├── 0001-architecture-pattern.md
 │   │   ├── 0002-backend-language.md
 │   │   ├── 0003-api-and-web-framework.md
-│   │   └── 0004-data-layer.md
+│   │   ├── 0004-data-layer.md
+│   │   └── 0005-nested-blocks.md
 │   ├── brand/                        # logo assets + preview
 │   │   ├── calco-symbol-light.svg
 │   │   ├── calco-symbol-dark.svg
