@@ -14,9 +14,11 @@ import type { ResourceNode } from './store';
 import { isContainer } from './containment';
 
 // Default size fed to ELK for a leaf node before React Flow has measured the
-// real DOM — matched to the rendered emblem (min-w 196 / max-w 264, ~65px tall)
-// so ELK sizes containers accurately for their children.
-const LEAF = { width: 216, height: 68 };
+// real DOM. Width matches the rendered emblem's MAX width (min-w 196 / max-w
+// 264): with 216 here, ELK pitched columns every 236px while 264px-wide nodes
+// still rendered at up to 264px, so wide rows overlapped each other on large
+// imports. Reserving the max width guarantees a clean gap for every node.
+const LEAF = { width: 264, height: 68 };
 
 // Size given to an EMPTY container (a subnet an imported resource references but
 // nests nothing into). Without a size ELK collapses it — or it keeps the large

@@ -1,4 +1,4 @@
-import { useCallback, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   Background,
@@ -7,6 +7,7 @@ import {
   MiniMap,
   ReactFlow,
   ReactFlowProvider,
+  useNodesInitialized,
   useReactFlow,
   type Edge,
   type EdgeTypes,
@@ -58,7 +59,31 @@ function Flow({ dark }: { dark: boolean }) {
   const addResourceAt = useCanvasStore((s) => s.addResourceAt);
   const reconnectEdge = useCanvasStore((s) => s.reconnectEdge);
   const loadExample = useCanvasStore((s) => s.loadExample);
-  const { getIntersectingNodes, getInternalNode, screenToFlowPosition } = useReactFlow<ResourceNode>();
+  const { getIntersectingNodes, getInternalNode, screenToFlowPosition, fitView } = useReactFlow<ResourceNode>();
+
+  // Re-fit when a load (import/example) replaces an empty canvas with a real
+  // graph. <ReactFlow fitView> only fits on mount — when there are no nodes —
+  // so a large imported graph (dozens of resources) would otherwise land mostly
+  // off-screen. Gated on useNodesInitialized so the fit sees the real measured
+  // bounds (measuring leaves before fitting was why the first attempt overflowed
+  // horizontally), and never re-fits again once the user starts working.
+  const nodesInitialized = useNodesInitialized();
+  const hadNodes = useRef(false);
+  useEffect(() => {
+    if (nodes.length === 0) {
+      hadNodes.current = false;
+      return;
+    }
+    if (!nodesInitialized) return;
+    if (hadNodes.current) return;
+    hadNodes.current = true;
+    requestAnimationFrame(() => {
+      // minZoom: a large imported graph can need to shrink far below the
+      // 0.8-zoom "start a touch zoomed out" cap for the mount fit; fitView
+      // would otherwise clamp and still overflow.
+      void fitView({ padding: 0.35, minZoom: 0.1, maxZoom: 0.8 });
+    });
+  }, [nodes.length, nodesInitialized, fitView]);
 
   // The container a dragged node would nest into, by geometry: the smallest
   // (innermost) intersecting node of the type this node's nest rule allows, or
@@ -277,8 +302,11 @@ function Flow({ dark }: { dark: boolean }) {
         // viewport at 100%. Capping the fit at 0.8 (and starting an empty canvas
         // there via defaultViewport) leaves room to place and nest without an
         // immediate pan.
-        fitViewOptions={{ padding: 0.35, maxZoom: 0.8 }}
+        fitViewOptions={{ padding: 0.35, minZoom: 0.1, maxZoom: 0.8 }}
         defaultViewport={{ x: 24, y: 24, zoom: 0.8 }}
+        // Large imports can legitimately need to zoom way out to be seen whole;
+        // the default 0.5 floor would leave a big graph half off-screen.
+        minZoom={0.1}
         deleteKeyCode={['Backspace', 'Delete']}
         elevateNodesOnSelect={false}
       >
