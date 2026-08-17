@@ -9,8 +9,15 @@ import { useCanvasStore } from '@/features/canvas/store';
 import { modelToCanvas } from '@/features/canvas/import';
 import { layout } from '@/features/canvas/layout';
 import { collectTfFiles } from './import-files';
+import { groupDiagnostics } from './group-diagnostics';
 
 type Diagnostic = components['schemas']['Diagnostic'];
+
+// Below this many diagnostics the flat list stays readable; at that point — the
+// normal case for a whole-folder import — they are collapsed by cause, then by
+// source file, so 1500 lines of "variable block not imported yet" become a
+// handful of expandable rows.
+const GROUP_DIAGNOSTICS_AT = 25;
 
 // The import dialog: paste Terraform, add .tf files, or drop/choose a whole
 // project folder; then send them to the static importer, reconstruct the canvas
@@ -155,23 +162,77 @@ export function ImportDialog({ onClose }: { onClose: () => void }) {
               <p className="text-sm">
                 {t('import.summary', { resources: result.count, skipped: result.diagnostics.length })}
               </p>
-              {result.diagnostics.length > 0 && (
-                <div className="rounded-md border">
-                  <div className="border-b px-3 py-1.5 text-[11px] uppercase tracking-wide text-muted-foreground">
-                    {t('import.notShown')}
+              {result.diagnostics.length > 0 &&
+                (result.diagnostics.length > GROUP_DIAGNOSTICS_AT ? (
+                  <div className="rounded-md border">
+                    <div className="flex items-center justify-between gap-2 border-b px-3 py-1.5">
+                      <span className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                        {t('import.notShown')}
+                      </span>
+                      <span className="text-[11px] text-muted-foreground">{t('import.groupedByCause')}</span>
+                    </div>
+                    <ul className="max-h-60 divide-y overflow-y-auto">
+                      {groupDiagnostics(result.diagnostics).map((g, gi) => (
+                        <li key={g.reason}>
+                          <details open={gi === 0}>
+                            <summary className="flex cursor-pointer items-baseline gap-2 px-3 py-1.5 text-xs hover:bg-secondary/50">
+                              <span className="rounded-sm bg-secondary px-1.5 font-mono text-[11px] tabular-nums">
+                                {g.count}
+                              </span>
+                              <span className="min-w-0 flex-1">{g.reason}</span>
+                            </summary>
+                            <ul className="border-t py-1">
+                              {g.files.map((fg) => (
+                                <li key={fg.file} className="px-3 py-1">
+                                  {fg.hasLabels ? (
+                                    <details>
+                                      <summary className="flex cursor-pointer items-baseline gap-1.5 font-mono text-[11px] text-muted-foreground hover:text-foreground">
+                                        <span className="min-w-0 flex-1 truncate" title={fg.file}>
+                                          {fg.file || t('import.unknownFile')}
+                                        </span>
+                                        <span className="tabular-nums">{fg.count}</span>
+                                      </summary>
+                                      <ul className="ml-3 mt-0.5 space-y-0.5 border-l pl-2">
+                                        {fg.entries.map((e, i) => (
+                                          <li key={i} className="font-mono text-[11px] text-muted-foreground">
+                                            {[e.address, e.attribute].filter(Boolean).join('.')}
+                                          </li>
+                                        ))}
+                                      </ul>
+                                    </details>
+                                  ) : (
+                                    <div className="flex items-baseline gap-1.5 font-mono text-[11px] text-muted-foreground">
+                                      <span className="min-w-0 flex-1 truncate" title={fg.file}>
+                                        {fg.file || t('import.unknownFile')}
+                                      </span>
+                                      <span className="tabular-nums">{fg.count}</span>
+                                    </div>
+                                  )}
+                                </li>
+                              ))}
+                            </ul>
+                          </details>
+                        </li>
+                      ))}
+                    </ul>
                   </div>
-                  <ul className="max-h-48 divide-y overflow-y-auto">
-                    {result.diagnostics.map((d, i) => (
-                      <li key={i} className="px-3 py-1.5 text-xs">
-                        <span className="font-mono text-muted-foreground">
-                          {[d.address, d.attribute].filter(Boolean).join('.') || d.file}
-                        </span>
-                        <span className="ml-2">{d.reason}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
+                ) : (
+                  <div className="rounded-md border">
+                    <div className="border-b px-3 py-1.5 text-[11px] uppercase tracking-wide text-muted-foreground">
+                      {t('import.notShown')}
+                    </div>
+                    <ul className="max-h-48 divide-y overflow-y-auto">
+                      {result.diagnostics.map((d, i) => (
+                        <li key={i} className="px-3 py-1.5 text-xs">
+                          <span className="font-mono text-muted-foreground">
+                            {[d.address, d.attribute].filter(Boolean).join('.') || d.file}
+                          </span>
+                          <span className="ml-2">{d.reason}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ))}
             </div>
           )}
         </div>

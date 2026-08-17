@@ -174,7 +174,9 @@
     "done": "Ver en el canvas",
     "errorPrefix": "No se pudo parsear el Terraform",
     "summary": "{{resources}} recursos importados · {{skipped}} no representadas",
-    "notShown": "No representado"
+    "notShown": "No representado",
+    "groupedByCause": "Agrupadas por causa",
+    "unknownFile": "(archivo desconocido)"
   },
   "footer": {
     "copyright": "© {{year}} Joshua Franco · Apache 2.0"
