@@ -11,6 +11,8 @@
 
 ![Status](https://img.shields.io/badge/estado-pre--MVP-orange) ![License](https://img.shields.io/badge/licencia-Apache_2.0-blue)
 
+[![Website](https://img.shields.io/badge/website-joshf8.github.io%2Fcalco-limegreen)](https://joshf8.github.io/calco/) [![Pages deploy](https://img.shields.io/github/actions/workflow/status/JoshF8/calco/pages.yml?branch=main&label=pages%20deploy&logo=github)](https://github.com/JoshF8/calco/actions/workflows/pages.yml)
+
 </div>
 
 ---
